@@ -1,0 +1,184 @@
+﻿using inventarioWebAI.Aplicacion.DTOs;
+using inventarioWebAI.Aplicacion.DTOs.AuthDTO;
+using inventarioWebAI.Aplicacion.Interfaces.IAuth;
+using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
+using inventarioWebAI.Infraestructura.Auth;
+using System.Text;
+using System.Text.Json;
+
+namespace inventarioWebAI.Aplicacion.Servicios.Auth
+{
+    public class AuthServicio : IAuthServicio
+    {
+        private readonly HttpClient _httpClient;
+        private readonly IConfiguration _config;
+        private readonly TokenStore _tokenStore;
+
+        public AuthServicio(HttpClient httpClient, IConfiguration config, TokenStore tokenStore)
+        {
+            _httpClient = httpClient;
+            _config = config;
+            _tokenStore = tokenStore;
+        }
+
+        public async Task<AuthRespuestasDto> LoginAsync(string email, string password)
+        {
+
+            var url = "https://egqgezxlgaajfrxmwvih.supabase.co/auth/v1/token?grant_type=password";
+            var anonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY");
+            var request = new
+            {
+                email,
+                password
+            };
+
+            var requestJson = JsonSerializer.Serialize(request);          
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
+            httpRequest.Headers.Add("apikey", anonKey);
+            httpRequest.Content = new StringContent(
+                requestJson,
+                Encoding.UTF8,
+                "application/json"
+            );           
+
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(content);
+            }
+
+            var json = JsonSerializer.Deserialize<JsonElement>(content);
+            var accessToken = json.GetProperty("access_token").GetString();
+            var userId = json.GetProperty("user")
+                 .GetProperty("id")
+                 .GetString();
+
+            return new AuthRespuestasDto
+            {
+                AccessToken = accessToken,
+                UserId = Guid.Parse(userId)
+
+            };
+        }
+
+        public async Task<AuthRespuestasDto> SignupAsync(string email, string password)
+        {
+            Console.WriteLine("========== SIGNUP START ==========");
+
+            try
+            {
+                var url = "https://egqgezxlgaajfrxmwvih.supabase.co/auth/v1/signup";
+
+                var anonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY");
+
+                if (string.IsNullOrWhiteSpace(anonKey))
+                    throw new Exception("Supabase AnonKey no configurada");
+
+                var request = new
+                {
+                    email,
+                    password
+                };
+
+                var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
+
+                httpRequest.Headers.Add("apikey", anonKey);
+                httpRequest.Headers.Add("Authorization", $"Bearer {anonKey}");
+
+                httpRequest.Content = new StringContent(
+                    JsonSerializer.Serialize(request),
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+                var response = await _httpClient.SendAsync(httpRequest);
+
+                var content = await response.Content.ReadAsStringAsync();
+
+                Console.WriteLine($"Status: {response.StatusCode}");
+                Console.WriteLine("Response:");
+                Console.WriteLine(content);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new Exception(content);
+                }
+
+                var json = JsonSerializer.Deserialize<JsonElement>(content);
+
+                string? accessToken = null;
+                string? refreshToken = null;
+
+                if (json.TryGetProperty("access_token", out var accessTokenElement))
+                {
+                    accessToken = accessTokenElement.GetString();
+                }
+
+                if (json.TryGetProperty("refresh_token", out var refreshTokenElement))
+                {
+                    refreshToken = refreshTokenElement.GetString();
+                }
+
+                Console.WriteLine($"AccessToken recibido: {!string.IsNullOrEmpty(accessToken)}");
+                Console.WriteLine($"RefreshToken recibido: {!string.IsNullOrEmpty(refreshToken)}");
+
+                Console.WriteLine("========== SIGNUP END ==========");
+
+                return new AuthRespuestasDto
+                {
+                    AccessToken = accessToken,
+                    RefreshToken = refreshToken
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("🔥 ERROR EN SIGNUP");
+                Console.WriteLine(ex);
+
+                throw;
+            }
+        }
+        public async Task<AuthRespuestasDto> RefreshTokenAsync(string refreshToken)
+        {
+            var url = "https://egqgezxlgaajfrxmwvih.supabase.co/auth/v1/token?grant_type=refresh_token";
+
+            var anonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY");
+
+            var request = new
+            {
+                refresh_token = refreshToken
+            };
+            Console.WriteLine("REFRESH TOKEN REQUEST:");
+            Console.WriteLine(refreshToken);
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
+
+            httpRequest.Headers.Add("apikey", anonKey);
+            httpRequest.Headers.Add("Authorization", $"Bearer {anonKey}");
+
+            httpRequest.Content = new StringContent(
+                JsonSerializer.Serialize(request),
+                Encoding.UTF8,
+                "application/json"
+            );
+
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception(content);
+
+            var json = JsonSerializer.Deserialize<JsonElement>(content);
+
+            return new AuthRespuestasDto
+            {
+
+                AccessToken = json.GetProperty("access_token").GetString(),
+                RefreshToken = json.GetProperty("refresh_token").GetString()
+            };
+        }
+       
+    
+    }
+}

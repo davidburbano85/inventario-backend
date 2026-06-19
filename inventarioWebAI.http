@@ -1,0 +1,6 @@
+@inventarioWebAI_HostAddress = http://localhost:5104
+
+GET {{inventarioWebAI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
