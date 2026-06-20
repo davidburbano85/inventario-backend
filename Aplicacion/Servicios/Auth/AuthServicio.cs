@@ -25,7 +25,7 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
         {
 
             var url = "https://egqgezxlgaajfrxmwvih.supabase.co/auth/v1/token?grant_type=password";
-            var anonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY");
+            var anonKey = _config.GetSection("Supabase")["AnonKey"];
             var request = new
             {
                 email,
@@ -67,84 +67,64 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
         {
             Console.WriteLine("========== SIGNUP START ==========");
 
-            try
+            var url = "https://egqgezxlgaajfrxmwvih.supabase.co/auth/v1/signup";
+            var anonKey = _config.GetSection("Supabase")["AnonKey"];
+
+            if (string.IsNullOrWhiteSpace(anonKey))
+                throw new Exception("Supabase AnonKey no configurada");
+
+            var request = new
             {
-                var url = "https://egqgezxlgaajfrxmwvih.supabase.co/auth/v1/signup";
+                email,
+                password
+            };
 
-                var anonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY");
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
 
-                if (string.IsNullOrWhiteSpace(anonKey))
-                    throw new Exception("Supabase AnonKey no configurada");
+            httpRequest.Headers.Add("apikey", anonKey);
+            httpRequest.Headers.Add("Authorization", $"Bearer {anonKey}");
 
-                var request = new
-                {
-                    email,
-                    password
-                };
+            httpRequest.Content = new StringContent(
+                JsonSerializer.Serialize(request),
+                Encoding.UTF8,
+                "application/json"
+            );
 
-                var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
+            var response = await _httpClient.SendAsync(httpRequest);
+            var content = await response.Content.ReadAsStringAsync();
 
-                httpRequest.Headers.Add("apikey", anonKey);
-                httpRequest.Headers.Add("Authorization", $"Bearer {anonKey}");
+            Console.WriteLine($"Status: {response.StatusCode}");
+            Console.WriteLine(content);
 
-                httpRequest.Content = new StringContent(
-                    JsonSerializer.Serialize(request),
-                    Encoding.UTF8,
-                    "application/json"
-                );
+            if (!response.IsSuccessStatusCode)
+                throw new Exception(content);
 
-                var response = await _httpClient.SendAsync(httpRequest);
+            var json = JsonSerializer.Deserialize<JsonElement>(content);
 
-                var content = await response.Content.ReadAsStringAsync();
+            var accessToken = json.GetProperty("access_token").GetString();
+            var refreshToken = json.GetProperty("refresh_token").GetString();
 
-                Console.WriteLine($"Status: {response.StatusCode}");
-                Console.WriteLine("Response:");
-                Console.WriteLine(content);
+            // 🔥 AQUÍ ESTÁ EL CAMBIO REAL
+            var userId = json.GetProperty("user").GetProperty("id").GetString();
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    throw new Exception(content);
-                }
+            Console.WriteLine($"UserId: {userId}");
 
-                var json = JsonSerializer.Deserialize<JsonElement>(content);
+            Console.WriteLine("========== SIGNUP END ==========");
 
-                string? accessToken = null;
-                string? refreshToken = null;
-
-                if (json.TryGetProperty("access_token", out var accessTokenElement))
-                {
-                    accessToken = accessTokenElement.GetString();
-                }
-
-                if (json.TryGetProperty("refresh_token", out var refreshTokenElement))
-                {
-                    refreshToken = refreshTokenElement.GetString();
-                }
-
-                Console.WriteLine($"AccessToken recibido: {!string.IsNullOrEmpty(accessToken)}");
-                Console.WriteLine($"RefreshToken recibido: {!string.IsNullOrEmpty(refreshToken)}");
-
-                Console.WriteLine("========== SIGNUP END ==========");
-
-                return new AuthRespuestasDto
-                {
-                    AccessToken = accessToken,
-                    RefreshToken = refreshToken
-                };
-            }
-            catch (Exception ex)
+            return new AuthRespuestasDto
             {
-                Console.WriteLine("🔥 ERROR EN SIGNUP");
-                Console.WriteLine(ex);
-
-                throw;
-            }
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                UserId = Guid.Parse(userId)
+            };
         }
+
+
         public async Task<AuthRespuestasDto> RefreshTokenAsync(string refreshToken)
         {
             var url = "https://egqgezxlgaajfrxmwvih.supabase.co/auth/v1/token?grant_type=refresh_token";
 
-            var anonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY");
+            var anonKey = _config.GetSection("Supabase")["AnonKey"];
 
             var request = new
             {

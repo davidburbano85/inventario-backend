@@ -3,6 +3,7 @@ using inventarioWebAI.Aplicacion.Interfaces.IAuth;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace inventarioWebAI.API.Controllers;
 [ApiController]
@@ -51,10 +52,18 @@ public class UsuarioController : ControllerBase
     {
         try
         {
-            var usuarioActualizado = await _usuarioServicio.ObtenerPorTelefonoAsync(telefono);
-            if (usuarioActualizado == null)
+            if (dto == null)
+                return BadRequest("El cuerpo de la solicitud no puede ser nulo.");
+
+            if (!telefono.Equals(dto.Telefono, StringComparison.OrdinalIgnoreCase))
+                return BadRequest("El teléfono de la ruta no coincide con el del cuerpo.");
+
+            var usuarioActual = await _usuarioServicio.ObtenerPorTelefonoAsync(telefono);
+            Console.WriteLine($"Usuario encontrado para teléfono {telefono}: {System.Text.Json.JsonSerializer.Serialize(usuarioActual)}");
+            if (usuarioActual == null)
                 return NotFound($"No se encontró un usuario con el teléfono {telefono}.");
             var resultado = await _usuarioServicio.ActualizarAsync(dto);
+            Console.WriteLine("Resultado de la actualización: " + System.Text.Json.JsonSerializer.Serialize(resultado));
             return Ok(resultado);
         }
         catch (Exception ex)
@@ -78,65 +87,50 @@ public class UsuarioController : ControllerBase
         }
     }
 
-    [HttpPut("me")]//796acbd0-a56f-4f0a-a299-10e58e1e4fc8
+
+
+    [Authorize]
+    [HttpPut("me")]
     public async Task<IActionResult> ActualizarUsuarioAutenticado([FromBody] UsuarioDTO dto)
     {
         try
         {
+            Console.WriteLine("===== INICIO ACTUALIZAR USUARIO =====");
 
-
-            foreach (var c in User.Claims)
-            {
-                Console.WriteLine($"{c.Type} -> {c.Value}");
-            }
+            Console.WriteLine($"DTO recibido: {System.Text.Json.JsonSerializer.Serialize(dto)}");
 
             var authUserIdString =
-           User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("sub")?.Value;
 
-            Console.WriteLine($"AUTH USER ID STRING controller: {authUserIdString}");
+            Console.WriteLine($"AUTH USER ID STRING: {authUserIdString}");
 
-
-
-            var claimSub = User.Claims.FirstOrDefault(c =>
-                    c.Type == "sub" ||
-                    c.Type == System.Security.Claims.ClaimTypes.NameIdentifier
-                );
-
-
-
-
-
-
-            if (string.IsNullOrEmpty(authUserIdString))
+            if (string.IsNullOrWhiteSpace(authUserIdString))
             {
-                return Unauthorized("No se encontró el ID del usuario en el token");
+                Console.WriteLine("NO SE ENCONTRÓ USER ID EN TOKEN");
+                return Unauthorized("Token inválido");
             }
 
             if (!Guid.TryParse(authUserIdString, out var authUserId))
             {
-
-                return Unauthorized("El ID del usuario no es un GUID válido");
+                Console.WriteLine($"ERROR PARSE GUID: {authUserIdString}");
+                return Unauthorized("ID inválido");
             }
 
-
+            Console.WriteLine($"GUID PARSEADO: {authUserId}");
 
             var resultado = await _usuarioServicio.ActualizarPorAuthAsync(authUserId, dto);
 
-
+            Console.WriteLine($"RESULTADO: {resultado}");
 
             return Ok(resultado);
         }
         catch (Exception ex)
         {
-
-
-            return StatusCode(500, $"Error al actualizar el usuario autenticado: {ex.Message}");
+            Console.WriteLine($"ERROR: {ex.Message}");
+            return StatusCode(500, ex.Message);
         }
     }
-
-
-
-
 
 }
 

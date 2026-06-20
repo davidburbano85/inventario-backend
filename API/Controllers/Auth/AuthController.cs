@@ -1,7 +1,9 @@
 ﻿using inventarioWebAI.Aplicacion.DTOs;
 using inventarioWebAI.Aplicacion.DTOs.AuthDTO;
 using inventarioWebAI.Aplicacion.Interfaces.IAuth;
+using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Dominio.Entidades;
 using inventarioWebAI.Infraestructura.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,16 +22,20 @@ public class AuthController : ControllerBase
     private readonly IAuthServicio _authServicio;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _config;
+    private readonly IUsuarioRepositorio _usuarioRepositorio;
 
     public AuthController(IUsuarioServicio usuarioServicio, 
                                     IAuthServicio authServicio,
                                     HttpClient httpClient,
-                                    IConfiguration configuration)
+                                    IConfiguration configuration,
+                                    IUsuarioRepositorio usuarioRepositorio)
     {
         _usuarioServicio = usuarioServicio;
         _authServicio = authServicio;
         _httpClient = httpClient;
-        _config = configuration;    }
+        _config = configuration;
+        _usuarioRepositorio = usuarioRepositorio;
+    }
     // =========================
     // LOGIN
     // =========================
@@ -73,27 +79,53 @@ public class AuthController : ControllerBase
     // SIGNUP
     // =========================
     [HttpPost("signup")]
-    public async Task<IActionResult> crear([FromBody] LoginDto dto)// aunque el dto se llama login, lo usaremos para el signup,
-                                                                    // ya que solo tiene email y password, lo que es suficiente
-                                                                    // para el registro
+    public async Task<IActionResult> crear([FromBody] LoginDto dto)
     {
-        Console.WriteLine("entro al servicio");                                                         // usuario en nuestra base de datos
+        Console.WriteLine("===== SIGNUP START =====");
 
         try
         {
-            var result = await _authServicio.SignupAsync(dto.Email, dto.Password);// este método se encargará de registrar el
-            Console.WriteLine("salio del servicio");                                                          // usuario en supabase auth y luego crear el
+            // 1. Crear usuario en Supabase Auth
+            var result = await _authServicio.SignupAsync(dto.Email, dto.Password);
+
+            Console.WriteLine($"UserId Auth: {result.UserId}");
+
+            if (result.UserId == Guid.Empty)
+            {
+                Console.WriteLine("ERROR: UserId vacío");
+                return BadRequest("No se pudo obtener el UserId de Supabase");
+            }
+
+            // 2. Crear usuario en tu tabla local (SIN auth_user_id)
+            var usuario = new Usuario
+            {
+                Id = result.UserId,   // 🔥 MISMO ID DE SUPABASE
+                Nombre = dto.Email,
+                Telefono = "",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var creado = await _usuarioRepositorio.CrearAsync(usuario);
+
+            if (creado!=0)
+            {
+                Console.WriteLine("ERROR: No se pudo insertar en tabla usuarios");
+                return StatusCode(500, "Error creando usuario en base de datos");
+            }
+
+            Console.WriteLine("===== SIGNUP END OK =====");
+
             return Ok(result);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: {ex}");
-            return BadRequest(ex.Message);
+            Console.WriteLine("===== SIGNUP ERROR =====");
+            Console.WriteLine(ex.Message);
+            Console.WriteLine(ex.StackTrace);
+
+            return StatusCode(500, $"Error en signup: {ex.Message}");
         }
     }
-
-
-
     // =========================
     // REFRESCAR TOKEN
     // =========================

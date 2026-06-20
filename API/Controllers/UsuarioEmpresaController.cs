@@ -23,15 +23,14 @@ public class UsuarioEmpresaController : ControllerBase
 
     // OBTENER POR ID
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<UsuarioEmpresaDTO>> ObtenerPorId(Guid empresaID, Guid id)
+    public async Task<ActionResult<UsuarioEmpresaDTO>> ObtenerPorEmpresaUsuario(Guid empresaID, Guid id)
     {
-        Console.WriteLine($"[UsuarioEmpresaController.ObtenerPorId] ENTRADA - ID: {id}");
+        Console.WriteLine($"[UsuarioEmpresaController.ObtenerPorEmpresaUsuario] ENTRADA - ID: {id } EMPRESAID: { empresaID}");
         try
         {
             Console.WriteLine($"[UsuarioEmpresaController.ObtenerPorId] Llamando al servicio");
-            var result = await _service.ObtenerPorIdAsync( empresaID,id);
-            Console.WriteLine($"[UsuarioEmpresaController.ObtenerPorId] Servicio retornó: {(result == null ? "null" : $"DTO con ID={result.Id}")}");
-
+            var result = await _service.ObtenerPorEmpresaUsuarioAsync( empresaID,id);
+            Console.WriteLine($"[UsuarioEmpresaController.ObtenerPorId] Servicio retornó: {(result == null ? "null" : $"{result.Count()} registros")}");
             if (result == null)
             {
                 Console.WriteLine($"[UsuarioEmpresaController.ObtenerPorId] Retornando NotFound");
@@ -49,12 +48,13 @@ public class UsuarioEmpresaController : ControllerBase
         }
     }
     // OBTENER POR EMPRESA
-    [HttpGet("empresa/{empresaId:guid}")]
+   
    
 
     // CREAR RELACION USUARIO-EMPRESA
 
     [HttpPost]
+  //  [Authorize(Roles ="admin,  superadmin")]
     public async Task<ActionResult<Guid>> Crear([FromBody] CrearUsuarioEmpresaRequest request)
     {
         Console.WriteLine($"[UsuarioEmpresaController.Crear] ENTRADA - EmpresaId: {request.EmpresaId}, UsuarioId: {request.UsuarioId}, Rol: {request.Rol}");
@@ -65,7 +65,7 @@ public class UsuarioEmpresaController : ControllerBase
             Console.WriteLine($"[UsuarioEmpresaController.Crear] Servicio retornó: {id}");
 
             Console.WriteLine($"[UsuarioEmpresaController.Crear] Retornando CreatedAtAction");
-            return CreatedAtAction(nameof(ObtenerPorId), new { id }, id);
+            return CreatedAtAction(nameof(ObtenerPorEmpresaUsuario), new { id }, id);
         }
         catch (Exception ex)
         {
@@ -75,6 +75,7 @@ public class UsuarioEmpresaController : ControllerBase
         }
     }
 
+   
     //actualizar rol
     [HttpPut("{usuarioId:guid}/empresas/{empresaId:guid}/rol")]
     public async Task<IActionResult> ActualizarRol(Guid usuarioId, Guid empresaId,

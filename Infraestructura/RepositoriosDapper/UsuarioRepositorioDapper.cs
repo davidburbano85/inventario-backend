@@ -27,23 +27,44 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
         {
             using var conexion = _dbConnectionFactory.CrearConexion();
 
-            const string sql = @"
-            INSERT INTO usuarios
-                    (auth_user_id, nombre, telefono, created_at)
-                VALUES
-                    (@AuthUserId, @Nombre, @Telefono, timezone('America/Bogota', now()))
-                RETURNING id;
-            ";
+            // 1. validar si ya existe
+            const string checkSql = @"
+        SELECT COUNT(1)
+        FROM usuarios
+        WHERE id = @Id;
+    ";
 
-            var id = await conexion.ExecuteScalarAsync<int>(
-                sql,
-                usuario
-               
+            var exists = await conexion.ExecuteScalarAsync<int>(
+                checkSql,
+                new { usuario.Id }
             );
 
-            return id;
-        }
+            if (exists > 0)
+            {
+                return 0; // ya existe, no insertar
+            }
 
+            // 2. insertar solo si no existe
+            const string insertSql = @"
+            INSERT INTO usuarios
+                (id, nombre, telefono, created_at)
+                VALUES
+                    (@Id, @Nombre, @Telefono, @CreatedAt);
+            ";
+
+            var rows = await conexion.ExecuteAsync(
+                insertSql,
+                new
+                {
+                    usuario.Id,
+                    usuario.Nombre,
+                    usuario.Telefono,
+                    usuario.CreatedAt
+                }
+            );
+
+            return rows;
+        }
 
         public async Task<Usuario?> ObtenerPorIdAsync(Guid idUsuario)
         {
@@ -60,7 +81,7 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
             try
             {
                 _logger.LogInformation(
-                    "Abriendo conexión para usuario {IdUsuario}",
+                    "Abriendo conexión para usuarios {IdUsuario}",
                     idUsuario);
 
                 using var conexion = _dbConnectionFactory.CrearConexion();
@@ -85,7 +106,7 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
             {
                 _logger.LogError(
                     ex,
-                    "Error consultando usuario {IdUsuario}",
+                    "Error consultando usuarios {IdUsuario}",
                     idUsuario);
 
                 throw;
@@ -135,7 +156,7 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
                         nombre AS Nombre, 
                         telefono AS Telefono,
                         created_at AS CreatedAt
-                        FROM usuario
+                        FROM usuarios
                         WHERE telefono=@Telefono         
                 ";
             return await conexion.QueryFirstOrDefaultAsync<Usuario>(sql, new { telefono });
@@ -146,11 +167,11 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
         {
             using var conexion = _dbConnectionFactory.CrearConexion();
             string sql = @"
-                UPDATE usuario
+                UPDATE usuarios
                 SET
                     nombre = @Nombre,
                     telefono =@Telefono,
-                    ceated_at = @CreatedAt
+                    created_at = @CreatedAt
                 WHERE id=@Id
             ";
             var filas = await conexion.ExecuteAsync(sql, usuario);
@@ -160,8 +181,8 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
         public async Task<bool> EliminarAsync(Guid idUsuario)
         {
 
-            var supabaseUrl = "https://egqgezxlgaajfrxmwvih.supabase.co";
-            var url = $"{supabaseUrl}/auth/v1/admin/users/{idUsuario}";
+            var supabaseUrl = "https://egqgezxlgaajfrxmwvih.supabase.co";//  esta es la url de tu proyecto en supabase
+            var url = $"{supabaseUrl}/auth/v1/admin/users/{idUsuario}";//  esta es la url para eliminar el usuario en supabase
             var serviceRoleKey = Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY");
             if (string.IsNullOrWhiteSpace(serviceRoleKey))
             {
@@ -183,17 +204,52 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
 
         public async Task<bool> ActualizarPorAuthAsync(Guid authId, Usuario usuario)
         {
-            using var conexion = _dbConnectionFactory.CrearConexion();
-            string sql = @"
-                UPDATE usuarios
-                SET
-                    nombre = @Nombre,
-                    telefono =@Telefono,
-                    created_at = @CreatedAt
-                WHERE id=@Id
-            ";
-            var filas = await conexion.ExecuteAsync(sql, new { Nombre = usuario.Nombre, Telefono = usuario.Telefono, CreatedAt = DateTime.UtcNow, Id = authId });
-            return filas > 0;
+            try
+            {
+                _logger.LogInformation(
+                    "INICIO ActualizarPorAuthAsync. AuthId={AuthId}",
+                    authId);
+
+                using var conexion = _dbConnectionFactory.CrearConexion();
+
+                const string sql = @"
+            UPDATE usuarios
+            SET
+                nombre = @Nombre,
+                telefono = @Telefono
+            WHERE id = @Id
+        ";
+
+                var parametros = new
+                {
+                    Id = authId,
+                    Nombre = usuario.Nombre,
+                    Telefono = usuario.Telefono
+                };
+
+                _logger.LogInformation(
+                    "Ejecutando UPDATE usuarios. Id={Id}",
+                    authId);
+
+                var filas = await conexion.ExecuteAsync(sql, parametros);
+
+                _logger.LogInformation(
+                    "Filas afectadas: {Filas}",
+                    filas);
+
+                return filas > 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "ERROR ActualizarPorAuthAsync. AuthId={AuthId}",
+                    authId);
+
+                throw;
+            }
         }
+
+
     }
 }

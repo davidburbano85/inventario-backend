@@ -120,7 +120,7 @@ public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
             throw new InvalidOperationException("El ID de la empresa es inválido.");
         }
 
-        var relacionesUsuario = await _usuarioEmpresaRepositorio.ObtenerPorEmpresaUsuarioAsync(id, empresaId);
+        var relacionesUsuario = await _usuarioEmpresaRepositorio.ObtenerPorEmpresaUsuarioAsync(empresaId, id);
 
         var relacion = relacionesUsuario.FirstOrDefault(r => r.EmpresaId == empresaId);
         if (relacion == null)

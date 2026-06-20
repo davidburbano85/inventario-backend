@@ -84,14 +84,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     options.RequireHttpsMetadata = false; // Deshabilita la exigencia de HTTPS para el endpoint de metadatos (útil para desarrollo local)
     options.TokenValidationParameters = new TokenValidationParameters
     {
+
         ValidateIssuer = true, // Habilita la validación del emisor del token
         ValidIssuer = supabaseIssuer, // Establece el emisor válido (la URL de Supabase)
         ValidateAudience = true, // Habilita la validación de la audiencia del token
         ValidAudience = supabaseAudience, // Establece la audiencia válida (configurada en Supabase)
         ValidateLifetime = true, // Habilita la validación de la vida útil del token
         ValidateIssuerSigningKey = true, // Habilita la validación de la firma del token
-        ClockSkew = TimeSpan.FromSeconds(30) // Permite un margen de tiempo para la expiración del token (útil para evitar problemas de sincronización de reloj)
-    
+        ClockSkew = TimeSpan.FromSeconds(30), // Permite un margen de tiempo para la expiración del token (útil para evitar problemas de sincronización de reloj)
+        NameClaimType = "sub",
+        RoleClaimType = "role"
     };
     options.Events = new JwtBearerEvents
     {
@@ -102,6 +104,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         OnMessageReceived = context =>
         {
+
             var header = context.Request.Headers["Authorization"].ToString();
             if (!string.IsNullOrEmpty(header))
             {
@@ -117,6 +120,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     Console.WriteLine($"Error al leer el token JWT: {ex.Message}"); // Log de error si el token no se puede leer
                 }
             }
+            Console.WriteLine($"TOKEN VALIDADO: {context.Principal?.Identity?.IsAuthenticated}");
+
             return Task.CompletedTask;
         },
         // ==========================================
