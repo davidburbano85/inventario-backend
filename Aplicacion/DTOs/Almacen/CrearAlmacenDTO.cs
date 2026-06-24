@@ -8,7 +8,7 @@ namespace inventarioWebAI.Aplicacion.DTOs.Almacen;
 // - Mantiene consistencia con patrón DTO existente
 public class CrearAlmacenDTO
 {
-    public Guid EmpresaId { get; set; } // NUEVO: requerido para multi-tenant
+
 
     public string Nombre { get; set; } = string.Empty; // NUEVO: nombre del almacén
 

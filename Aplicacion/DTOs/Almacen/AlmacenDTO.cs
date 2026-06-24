@@ -18,4 +18,5 @@ public class AlmacenDTO
     public string? Ubicacion { get; set; } // NUEVO: ubicación opcional
 
     public DateTime CreatedAt { get; set; } // NUEVO: fecha de creación
+    public DateTime? UpdatedAt { get; set; }
 }

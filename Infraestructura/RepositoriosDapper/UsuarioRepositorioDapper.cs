@@ -183,11 +183,11 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
 
             var supabaseUrl = "https://egqgezxlgaajfrxmwvih.supabase.co";//  esta es la url de tu proyecto en supabase
             var url = $"{supabaseUrl}/auth/v1/admin/users/{idUsuario}";//  esta es la url para eliminar el usuario en supabase
-            var serviceRoleKey = Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY");
+            var serviceRoleKey = _config["Supabase:service_role_key"];
+
             if (string.IsNullOrWhiteSpace(serviceRoleKey))
-            {
-                throw new InvalidOperationException("La variable de entorno SUPABASE_SERVICE_ROLE_KEY no está configurada.");
-            }
+                throw new InvalidOperationException("SUPABASE_SERVICE_ROLE_KEY no está configurada.");
+
             var client = _httpClientFactory.CreateClient();
             var request = new HttpRequestMessage(HttpMethod.Delete, url);
             request.Headers.Add("apikey", serviceRoleKey);
@@ -198,7 +198,7 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
                 var error = await response.Content.ReadAsStringAsync();
                 throw new Exception(error);
             }
-            return response.IsSuccessStatusCode;
+            return true;
         }
 
 

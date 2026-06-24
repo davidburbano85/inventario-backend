@@ -8,6 +8,7 @@ public class UsuarioEmpresaDTO
     public Guid Id { get; set; }
     public Guid EmpresaId { get; set; }
     public Guid UsuarioId { get; set; }
+    public bool Activo { get; set; }
     public RolUsuarioEmpresaDTO Rol { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

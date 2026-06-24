@@ -280,9 +280,9 @@ public class UsuarioEmpresaRepositorioDapper : IUsuarioEmpresaRepositorio
         }
     }
 
-  
 
-    public  async Task<UsuarioEmpresa> ObtenerPorUsuarioYEmpresaAsync(Guid usuarioId, Guid empresaId)
+
+    public async Task<UsuarioEmpresa> ObtenerPorUsuarioYEmpresaAsync(Guid usuarioId, Guid empresaId)
     {
         try
         {
@@ -330,6 +330,103 @@ public class UsuarioEmpresaRepositorioDapper : IUsuarioEmpresaRepositorio
 
             Console.WriteLine(ex.StackTrace);
 
+            throw;
+        }
+    }
+
+    public async Task<UsuarioEmpresa?> ObtenerEmpresaActivaAsync(Guid usuarioId)
+    {
+        try
+        {
+            using var conn = _db.CrearConexion();
+
+            var sql = @"
+            SELECT 
+                id,
+                empresa_id,
+                usuario_id,
+                rol,
+                created_at,
+                updated_at,
+                activo
+            FROM usuarios_empresas
+            WHERE usuario_id = @UsuarioId
+              AND activo = true
+              ORDER BY updated_at DESC
+              LIMIT 1;";
+
+            var row = await conn.QueryFirstOrDefaultAsync<UsuarioEmpresaDb>(
+                sql,
+                new { UsuarioId = usuarioId }
+            );
+
+            if (row == null)
+                return null;
+
+            return new UsuarioEmpresa
+            {
+                Id = row.Id,
+                EmpresaId = row.Empresa_Id,
+                UsuarioId = row.Usuario_Id,
+                Rol = RolUsuarioEmpresaMapper.ToDomain(row.Rol),
+                Activo = row.Activo,
+                CreatedAt = row.Created_At,
+                UpdatedAt = row.UpdatedAt
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ObtenerEmpresaActivaAsync] ERROR: {ex.Message}");
+            throw;
+        }
+    }
+
+    public async Task DesactivarTodasAsync(Guid usuarioId)
+    {
+        try
+        {
+            using var conn = _db.CrearConexion();
+            var sql = @"
+                UPDATE usuarios_empresas
+                SET activo = false,
+                    updated_at = timezone('America/Bogota', now())
+                WHERE usuario_id = @UsuarioId;";
+            await conn.ExecuteAsync(sql, new
+            {
+                UsuarioId = usuarioId
+            });
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DesactivarTodasAsync] ERROR: {ex.Message}");
+            throw;
+        }
+
+
+    }
+
+    public async Task ActivarEmpresaAsync(Guid usuarioId, Guid empresaId)
+    {
+        try
+        {
+            using var conn= _db.CrearConexion();
+            var sql = @"
+                UPDATE usuarios_empresas
+                SET activo = true,
+                    updated_at = timezone('America/Bogota', now())
+                WHERE usuario_id = @UsuarioId
+                  AND empresa_id = @EmpresaId;";
+
+            await conn.ExecuteAsync(sql, new
+            {
+                UsuarioId = usuarioId,
+                EmpresaId = empresaId
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ActivarEmpresaAsync] ERROR: {ex.Message}");
             throw;
         }
     }

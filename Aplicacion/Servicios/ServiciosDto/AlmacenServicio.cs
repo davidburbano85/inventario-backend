@@ -1,116 +1,117 @@
-﻿//// Ubicación: /src/Aplicacion/Servicios/AlmacenServicio.cs
+﻿using inventarioWebAI.Aplicacion.DTOs.Almacen;
+using inventarioWebAI.Aplicacion.Interfaces;
+using inventarioWebAI.Aplicacion.Interfaces.Context;
+using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
+using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Dominio.Entidades;
 
-//using Dapper;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces;
-//using inventarioWebAI.Infraestructura.conexion;
+namespace inventarioWebAI.Aplicacion.Servicios;
 
-//namespace inventarioWebAI.Aplicacion.Servicios;
+public class AlmacenServicio : IAlmacenServicio
+{
+    private readonly IAlmacenRepositorio _almacenRepositorio;
+    private readonly IPermisoServicio _permisoServicio;
+    private readonly IUsuarioContext _usuarioContext;
+    private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
+    private readonly IEmpresaRepositorio _empresaRepositorio;
 
-//// NUEVO: implementación de servicio de almacenes
-//// POR QUÉ:
-//// - Mantener consistencia con patrón existente (Servicio + Dapper)
-//// - Gestionar multi-tenant correctamente
-//public class AlmacenServicio : IAlmacenServicio
-//{
-//    private readonly DbConnectionFactory _db;
+    public AlmacenServicio(
+        IAlmacenRepositorio almacenRepositorio,
+        IPermisoServicio permisoServicio,
+        IUsuarioContext usuarioContext,
+        IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+        IEmpresaRepositorio empresaRepositorio)
+    {
+        _almacenRepositorio = almacenRepositorio;
+        _permisoServicio = permisoServicio;
+        _usuarioContext = usuarioContext;
+        _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
+        _empresaRepositorio = empresaRepositorio;
+    }
 
-//    public AlmacenServicio(DbConnectionFactory db)
-//    {
-//        _db = db;
-//    }
+    // ==============================
+    // CREAR ALMACÉN
+    // ==============================
+    public async Task<Guid> CrearAlmacenAsync(Guid usuarioId, string nombre, string ubicacion)
+    {
+        if (usuarioId == Guid.Empty)
+            throw new InvalidOperationException("El ID del usuario es inválido.");
 
-//    public async Task<IEnumerable<AlmacenDTO>> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        using var connection = _db.CrearConexion();
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new InvalidOperationException("El nombre del almacén es obligatorio.");
 
-//        var sql = @"
-//            SELECT
-//                id,
-//                nombre,
-//                ubicacion
-//            FROM almacenes
-//            WHERE empresa_id = @EmpresaId
-//            ORDER BY nombre;
-//        ";
+        if (string.IsNullOrWhiteSpace(ubicacion))
+            throw new InvalidOperationException("La ubicación del almacén es obligatoria.");
 
-//        return await connection.QueryAsync<AlmacenDTO>(sql, new
-//        {
-//            EmpresaId = empresaId
-//        });
-//    }
+        // 1. Validar empresa activa del usuario
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//    public async Task<Guid> Crear(CrearAlmacenDTO dto)
-//    {
-//        using var connection = _db.CrearConexion();
+        if (usuarioEmpresa == null)
+            throw new InvalidOperationException("El usuario no tiene una empresa activa.");
 
-//        // EXISTENTE: validaciones básicas
-//        if (dto.EmpresaId == Guid.Empty)
-//            throw new InvalidOperationException("EmpresaId es requerido.");
+        var empresaId = usuarioEmpresa.EmpresaId;
 
-//        if (string.IsNullOrWhiteSpace(dto.Nombre))
-//            throw new InvalidOperationException("El nombre del almacén es obligatorio.");
+        // 2. Validar que la empresa exista (consistencia de datos)
+        var empresa = await _empresaRepositorio.ObtenerEmpresaPorIdAsync(empresaId);
 
-//        // NUEVO: validación multi-tenant (usuario → empresa)
-//        // Gap detectado: CrearAlmacenDTO no tiene UsuarioId
-//        // Se valida existencia de empresa como fallback
-//        var sqlValidarEmpresa = @"
-//            SELECT 1
-//            FROM empresas
-//            WHERE id = @EmpresaId;
-//        ";
+        if (empresa == null)
+            throw new InvalidOperationException("La empresa no existe.");
 
-//        var empresaExiste = await connection.ExecuteScalarAsync<int?>(sqlValidarEmpresa, new
-//        {
-//            dto.EmpresaId
-//        });
+        // 3. Validar permisos (solo SuperAdmin)
+        var esSuperAdmin = await _permisoServicio.EsSuperAdminAsync(usuarioId, empresaId);
 
-//        if (empresaExiste is null)
-//            throw new InvalidOperationException("La empresa no existe."); // NUEVO
+        if (!esSuperAdmin)
+            throw new UnauthorizedAccessException("Solo un SuperAdmin puede crear almacenes.");
 
-//        // NUEVO: normalización
-//        var nombreNormalizado = dto.Nombre.Trim(); // evita duplicados con espacios
-//        var ubicacionNormalizada = dto.Ubicacion?.Trim(); // opcional
+        // 4. Crear entidad
+        var almacen = new Almacen
+        {
+            EmpresaId = empresaId,
+            Nombre = nombre.Trim(),
+            Ubicacion = ubicacion.Trim()
+        };
 
-//        // NUEVO: validación de nombre único por empresa (refuerza constraint DB)
-//        var sqlValidarNombre = @"
-//            SELECT COUNT(1)
-//            FROM almacenes
-//            WHERE empresa_id = @EmpresaId
-//              AND nombre = @Nombre;
-//        ";
+        // 5. Persistir
+        var id = await _almacenRepositorio.CrearAlmacenAsync(almacen);
 
-//        var existe = await connection.ExecuteScalarAsync<int>(sqlValidarNombre, new
-//        {
-//            dto.EmpresaId,
-//            Nombre = nombreNormalizado
-//        });
+        return id;
+    }
+    // ==============================
+    // OBTENER ALMACENES
+    // ==============================
+    public async Task<IEnumerable<AlmacenDTO>> ObtenerAlmacenPorEmpresaAsync()
+    {
+        try
+        {
+            var empresaId = _usuarioContext.ObtenerEmpresaId();
+            var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        if (existe > 0)
-//            throw new InvalidOperationException("Ya existe un almacén con ese nombre en la empresa."); // NUEVO
+            if (empresaId == Guid.Empty)
+                throw new InvalidOperationException("EmpresaId inválido.");
 
-//        var sql = @"
-//            INSERT INTO almacenes (
-//                empresa_id,
-//                nombre,
-//                ubicacion
-//            )
-//            VALUES (
-//                @EmpresaId,
-//                @Nombre,
-//                @Ubicacion
-//            )
-//            RETURNING id;
-//        ";
+            if (usuarioId == Guid.Empty)
+                throw new InvalidOperationException("UsuarioId inválido.");
 
-//        var id = await connection.ExecuteScalarAsync<Guid>(sql, new
-//        {
-//            dto.EmpresaId,
-//            Nombre = nombreNormalizado,
-//            Ubicacion = ubicacionNormalizada
-//        });
+            // 🔐 PERMISOS
+            await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
 
-//        return id;
-//    }
-//}
+            var almacenes = await _almacenRepositorio
+                .ObtenerAlmacenPorEmpresaIdAsync(empresaId);
 
+            return almacenes.Select(a => new AlmacenDTO
+            {
+                Id = a.Id,
+                EmpresaId = a.EmpresaId,
+                Nombre = a.Nombre,
+                Ubicacion = a.Ubicacion,
+                CreatedAt = a.CreatedAt
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ALMACEN SERVICE] Obtener ERROR: {ex.Message}");
+            throw;
+        }
+    }
+}

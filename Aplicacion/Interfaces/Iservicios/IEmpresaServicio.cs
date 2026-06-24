@@ -22,4 +22,5 @@ public interface IEmpresaServicio
 
     Task <EmpresaDTO>ActualizarEmpresaAsync( Guid usuarioId, EmpresaDTO dto);
     Task<bool>EliminarEmpresaAsync(Guid usuarioId ,Guid empresaId);
+    Task<Guid> ObtenerEmpresaActivaAsync(Guid usuarioId);
 }

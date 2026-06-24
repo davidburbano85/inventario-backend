@@ -14,8 +14,8 @@ namespace inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 public interface IAlmacenServicio
 {
     // NUEVO: obtener todos los almacenes por empresa
-    Task<IEnumerable<AlmacenDTO>> ObtenerPorEmpresa(Guid empresaId);
+    Task<IEnumerable<AlmacenDTO>> ObtenerAlmacenPorEmpresaAsync();
 
     // NUEVO: crear un almacén
-    Task<Guid> Crear(CrearAlmacenDTO dto);
+    Task<Guid> CrearAlmacenAsync(Guid usuarioId, string nombre, string ubicacion);
 }

@@ -5,6 +5,7 @@ using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Infraestructura.Auth;
 using System.Text;
 using System.Text.Json;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace inventarioWebAI.Aplicacion.Servicios.Auth
 {
@@ -13,56 +14,63 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _config;
         private readonly TokenStore _tokenStore;
+        private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
+        private readonly IJwtServicio _jwtServicio;
 
-        public AuthServicio(HttpClient httpClient, IConfiguration config, TokenStore tokenStore)
+        public AuthServicio(HttpClient httpClient, 
+                            IConfiguration config, 
+                            TokenStore tokenStore,
+                            IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+                            IJwtServicio jwtServicio)
         {
             _httpClient = httpClient;
             _config = config;
             _tokenStore = tokenStore;
+            _usuarioEmpresaRepositorio= usuarioEmpresaRepositorio;
+            _jwtServicio = jwtServicio;
         }
 
         public async Task<AuthRespuestasDto> LoginAsync(string email, string password)
         {
-
             var url = "https://egqgezxlgaajfrxmwvih.supabase.co/auth/v1/token?grant_type=password";
             var anonKey = _config.GetSection("Supabase")["AnonKey"];
+
             var request = new
             {
                 email,
                 password
             };
 
-            var requestJson = JsonSerializer.Serialize(request);          
+            var requestJson = JsonSerializer.Serialize(request);
+
             var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
             httpRequest.Headers.Add("apikey", anonKey);
             httpRequest.Content = new StringContent(
                 requestJson,
                 Encoding.UTF8,
                 "application/json"
-            );           
+            );
 
             var response = await _httpClient.SendAsync(httpRequest);
             var content = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
-            {
                 throw new Exception(content);
-            }
 
             var json = JsonSerializer.Deserialize<JsonElement>(content);
+
             var accessToken = json.GetProperty("access_token").GetString();
+
             var userId = json.GetProperty("user")
-                 .GetProperty("id")
-                 .GetString();
+                .GetProperty("id")
+                .GetString();
 
             return new AuthRespuestasDto
             {
                 AccessToken = accessToken,
                 UserId = Guid.Parse(userId)
-
             };
         }
-
         public async Task<AuthRespuestasDto> SignupAsync(string email, string password)
         {
             Console.WriteLine("========== SIGNUP START ==========");
@@ -118,7 +126,48 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
                 UserId = Guid.Parse(userId)
             };
         }
+        public async Task<AuthRespuestasDto> LoginEmpresaAsync(Guid userId, Guid empresaId)
+        {
+            try
+            {
+                // 1. Validar relación usuario-empresa
+                var relacion = await _usuarioEmpresaRepositorio
+                    .ObtenerPorUsuarioYEmpresaAsync(userId, empresaId);
 
+                if (relacion == null)
+                    throw new UnauthorizedAccessException("El usuario no pertenece a esta empresa.");
+
+                // 2. Desactivar todas las empresas del usuario
+                await _usuarioEmpresaRepositorio.DesactivarTodasAsync(userId);
+
+                // 3. Activar la empresa seleccionada
+                await _usuarioEmpresaRepositorio.ActivarEmpresaAsync(userId, empresaId);
+
+                // 4. Generar JWT interno de empresa
+                var tokenInterno = _jwtServicio.generarToken(userId, empresaId);
+
+                // 5. Retornar respuesta coherente con tu DTO actual
+                return new AuthRespuestasDto
+                {
+                    UserId = userId,
+                    TokenInterno = tokenInterno,
+                    AccessToken = null,
+                    RefreshToken = null
+                };
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Console.WriteLine($"[LoginEmpresaAsync] Unauthorized: {ex.Message}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[LoginEmpresaAsync] ERROR GENERAL: {ex.Message}");
+                Console.WriteLine($"[LoginEmpresaAsync] STACK: {ex.StackTrace}");
+
+                throw new Exception("Error en LoginEmpresaAsync: " + ex.Message, ex);
+            }
+        }
 
         public async Task<AuthRespuestasDto> RefreshTokenAsync(string refreshToken)
         {

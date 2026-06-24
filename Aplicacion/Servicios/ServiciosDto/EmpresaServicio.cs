@@ -21,7 +21,8 @@ public class EmpresaServicio : IEmpresaServicio
     private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
 
     public EmpresaServicio(IEmpresaRepositorio empresaRepositorio,
-                            IPermisoServicio permisoServicio, IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio)
+                            IPermisoServicio permisoServicio, 
+                            IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio)
     {
         _empresaRepositorio = empresaRepositorio;
         _permisoServicio = permisoServicio;
@@ -52,6 +53,7 @@ public class EmpresaServicio : IEmpresaServicio
         return empresaId;
 
     }
+   
     public async Task<EmpresaDTO> ObtenerEmpresaPorIdAsync(Guid empresaId)
     {
         if (empresaId == Guid.Empty)
@@ -89,7 +91,9 @@ public class EmpresaServicio : IEmpresaServicio
     public async Task<EmpresaDTO> ActualizarEmpresaAsync(Guid usuarioId, EmpresaDTO dto)
     {
         if (dto.Id == Guid.Empty)
-            throw new InvalidOperationException("ID inválido.");
+            throw new InvalidOperationException("ID de la empresa esta vacop.");
+        if (usuarioId == Guid.Empty)
+            throw new InvalidOperationException("el guid del usuario que creo la empersa es obligatorio");
 
         if (string.IsNullOrWhiteSpace(dto.Nombre))
             throw new InvalidOperationException("El nombre es obligatorio.");
@@ -127,5 +131,15 @@ public class EmpresaServicio : IEmpresaServicio
         return result != null;
     }
 
+    public async Task<Guid> ObtenerEmpresaActivaAsync(Guid usuarioId)
+    {
+        var empresas = await _empresaRepositorio.ObtenerEmpresaPorUsuarioAsync(usuarioId);
 
+        var empresaActiva = empresas.FirstOrDefault(); // temporal
+
+        if (empresaActiva == null)
+            throw new Exception("El usuario no tiene empresas asignadas.");
+
+        return empresaActiva.Id;
+    }
 }

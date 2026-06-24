@@ -1,6 +1,7 @@
 ﻿
 using inventarioWebAI.Aplicacion.DTOs.UsuarioEmpresa;
 using inventarioWebAI.Aplicacion.Enums; // necesario para enum RolUsuarioEmpresaDTO
+using inventarioWebAI.Aplicacion.Interfaces.IAuth;
 using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios; // requerido para repositorios
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
@@ -17,16 +18,19 @@ public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
     private readonly IEmpresaRepositorio _empresaRepositorio;
     private readonly IUsuarioRepositorio _usuarioRepositorio;
     private readonly IPermisoServicio _permisoServicio;
+    private readonly IJwtServicio _jwtServicio;
 
     public UsuarioEmpresaServicio(IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
                                    IEmpresaRepositorio empresaRepositorio,
                                    IUsuarioRepositorio usuarioRepositorio,
-                                   IPermisoServicio permisoServicio)
+                                   IPermisoServicio permisoServicio,
+                                   IJwtServicio jwtServicio)
     {
         _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
         _empresaRepositorio = empresaRepositorio;
         _usuarioRepositorio = usuarioRepositorio;
         _permisoServicio = permisoServicio;
+        _jwtServicio = jwtServicio;
     }
 
     public async Task<UsuarioEmpresaDTO?> ObtenerPorIdAsync(Guid id, Guid empresaId)
@@ -186,4 +190,33 @@ public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
         return nombre ?? string.Empty;
     }
 
+    public async Task<string>SeleccionarEmpresaAsync(Guid usuarioId, Guid empresaId)
+    {
+        if(usuarioId == Guid.Empty || empresaId==Guid.Empty)
+            throw new InvalidOperationException("IDs inválidos");
+       //validar que el usuaario pertenece a una empresa
+        var relacion= await _usuarioEmpresaRepositorio
+            .ObtenerPorUsuarioYEmpresaAsync(usuarioId, empresaId);
+        if (relacion == null)
+            throw new UnauthorizedAccessException("El usuario no pertenece a esta empresa");
+       var esSuperAdmin=  await _permisoServicio.EsSuperAdminAsync(usuarioId,empresaId);
+        if(!esSuperAdmin)
+            throw new UnauthorizedAccessException("Solo un SuperAdmin puede cambiar empresa activa");
+        
+        //desactivar todas las empresas del usuario
+        await _usuarioEmpresaRepositorio.DesactivarTodasAsync(usuarioId);
+        //activar empresa seleccionada
+        await _usuarioEmpresaRepositorio.ActivarEmpresaAsync(usuarioId,empresaId);
+        //generar jwt de empresa
+        var tokenEmpresa = _jwtServicio.generarToken(usuarioId, empresaId);
+        //retornar token
+        return tokenEmpresa;
+
+    
+    
+    
+    
+    
+    
+    }
 }

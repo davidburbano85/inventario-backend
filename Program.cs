@@ -40,8 +40,9 @@ var supabaseAudience = builder.Configuration["Supabase:Audience"]; // Obtiene la
 // ===========================
 // INYECCIÓN DEPENDENCIAS
 // ===========================
-// Registra la implementación de IDbConnectionFactory usando NpgsqlConnectionFactory
 
+// ============================Registra la implementación de ======================================
+// =============================IDbConnectionFactory usando NpgsqlConnectionFactory ===============
 builder.Services.AddScoped<IDbConnectionFactory, NpgsqlConnectionFactory>(); 
 //=============================auth=============================
 builder.Services.AddHttpClient<IAuthServicio, AuthServicio>(); // Registra el servicio de autenticación con HttpClient para llamadas HTTP a Supabase
@@ -63,6 +64,11 @@ builder.Services.AddScoped<IUsuarioContext,UsuarioContextService>();// Registra 
 // =========================== empresa ============================
 builder.Services.AddScoped<IEmpresaRepositorio, EmpresaRepositorioDapper>();
 builder.Services.AddScoped<IEmpresaServicio, EmpresaServicio>();
+// ============================= jwtServicio ======================
+builder.Services.AddScoped<IJwtServicio, JwtServicio>();
+// ========================= Almacen ==================================
+builder.Services.AddScoped<IAlmacenRepositorio, AlmacenRepositorioDapper>();
+builder.Services.AddScoped<IAlmacenServicio, AlmacenServicio>();
 
 builder.Logging.ClearProviders();// Limpia los proveedores de logging predeterminados
 builder.Logging.AddConsole();// Agrega el proveedor de logging para la consola

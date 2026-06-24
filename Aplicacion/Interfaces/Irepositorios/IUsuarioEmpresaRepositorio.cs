@@ -20,6 +20,9 @@ namespace inventarioWebAI.Aplicacion.Interfaces.Irepositorios
         Task<bool> ActualizarRolAsync(Guid usuarioId, Guid empresaId, RolUsuarioEmpresa rol);
         Task <int> ContarAdminsPorEmpresaAsync(Guid empresaId);
         Task<UsuarioEmpresa> ObtenerPorUsuarioYEmpresaAsync(Guid usuarioId, Guid empresaId);
+        Task<UsuarioEmpresa?> ObtenerEmpresaActivaAsync(Guid usuarioId);
+        Task DesactivarTodasAsync(Guid usuarioId);
 
+        Task ActivarEmpresaAsync(Guid usuarioId, Guid empresaId);
     }
 }

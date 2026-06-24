@@ -1,34 +1,54 @@
-//using Microsoft.AspNetCore.Mvc;
-//using Microsoft.AspNetCore.Authorization;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Aplicacion.DTOs.Almacen;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Aplicacion.Servicios;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
-//namespace inventarioWebAI.API.Controllers;
+[ApiController]
+[Route("api/almacenes")]
+public class AlmacenController : ControllerBase
+{
+    private readonly IAlmacenServicio _servicio;
+    private readonly IEmpresaServicio _empresaServicio;
 
-//[ApiController]
-//[Route("api/almacenes")]
-//[Authorize]
-//public class AlmacenController : ControllerBase
-//{
-//    private readonly IAlmacenServicio _servicio;
+    public AlmacenController(
+        IAlmacenServicio servicio,
+        IEmpresaServicio empresaServicio)
+    {
+        _servicio = servicio;
+        _empresaServicio = empresaServicio;
+    }
 
-//    public AlmacenController(IAlmacenServicio servicio)
-//    {
-//        _servicio = servicio;
-//    }
+    [HttpPost]
+    public async Task<ActionResult<Guid>> Crear([FromBody] CrearAlmacenDTO dto)
+    {
+        try
+        {
+            var usuarioIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("sub")?.Value;
 
-//    [HttpGet("{empresaId}")]
-//    public async Task<IActionResult> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        var result = await _servicio.ObtenerPorEmpresa(empresaId);
-//        return Ok(result);
-//    }
+            if (string.IsNullOrEmpty(usuarioIdClaim) || !Guid.TryParse(usuarioIdClaim, out var usuarioId))
+                return Unauthorized("Usuario no válido");
 
-//    [HttpPost]
-//    public async Task<IActionResult> Crear([FromBody] CrearAlmacenDTO dto)
-//    {
-//        if (!ModelState.IsValid) return BadRequest(ModelState);
-//        var id = await _servicio.Crear(dto);
-//        return Ok(new { id });
-//    }
-//}
+            var id = await _servicio.CrearAlmacenAsync(
+                usuarioId,
+                dto.Nombre,
+                dto.Ubicacion
+            );
+
+            return CreatedAtAction(nameof(Crear), new { id }, id);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Obtener()
+    {
+        var data = await _servicio.ObtenerAlmacenPorEmpresaAsync();
+
+        return Ok(data);
+    }
+}
