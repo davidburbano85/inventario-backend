@@ -3,6 +3,6 @@
     public interface IUsuarioContext
     {
         Guid ObtenerAuthUserId();
-        Guid ObtenerEmpresaId();
+        
     }
 }

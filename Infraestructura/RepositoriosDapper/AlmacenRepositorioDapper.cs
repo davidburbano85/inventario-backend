@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using inventarioWebAI.Aplicacion.DTOs.Almacen;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Dominio.Entidades;
 using inventarioWebAI.Dominio.Enums;
@@ -71,47 +72,86 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
             }
         }
 
-        public async Task<IEnumerable<Almacen>> ObtenerAlmacenPorEmpresaIdAsync(Guid empresaId)
+        //public async Task<Almacen?> ObtenerAlmacenPorIdAsync(Guid id, Guid empresaId)
+        //{
+        //    Console.WriteLine("[ObtenerAlmacenPorIdAsync] INICIO");
+
+        //    try
+        //    {
+        //        using var conn = _db.CrearConexion();
+
+        //        var sql = @"
+        //            SELECT 
+        //                id,
+        //                empresa_id,
+        //                nombre,
+        //                ubicacion,
+        //                created_at,
+        //                updated_at,
+        //                activo
+        //            FROM almacenes
+        //            WHERE id = @Id
+        //              AND empresa_id = @EmpresaId
+        //              AND activo = true;";
+
+        //        var row = await conn.QueryFirstOrDefaultAsync<Almacen>(
+        //            sql,
+        //            new
+        //            {
+        //                Id = id,
+        //                EmpresaId = empresaId
+        //            });
+
+        //        return row;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Console.WriteLine($"[ObtenerAlmacenPorIdAsync] ERROR: {ex.GetType().Name} - {ex.Message}");
+        //        Console.WriteLine(ex.StackTrace);
+        //        throw;
+        //    }
+        //}
+
+        public async Task<Almacen?> ObtenerAlmacenActivoPorEmpresaAsync(Guid empresaId)
         {
+            Console.WriteLine("[ObtenerAlmacenActivoPorEmpresaAsync] INICIO");
+
             try
             {
-                using var connection = _db.CrearConexion();
+                using var conn = _db.CrearConexion();
 
                 var sql = @"
-            SELECT
-                id,
-                empresa_id AS EmpresaId,
-                nombre,
-                ubicacion,
-                created_at AS CreatedAt,
-                updated_at AS UpdatedAt
-            FROM almacenes
-            WHERE empresa_id = @EmpresaId;
-        ";
+                SELECT
+                    id,
+                    empresa_id,
+                    nombre,
+                    ubicacion,
+                    created_at,
+                    updated_at,
+                    activo
+                FROM almacenes
+                WHERE empresa_id = @EmpresaId
+                  AND activo = true
+                LIMIT 1;";
 
-                var almacenes = await connection.QueryAsync<Almacen>(sql, new
-                {
-                    EmpresaId = empresaId
-                });
+                var almacen = await conn.QueryFirstOrDefaultAsync<Almacen>(
+                    sql,
+                    new
+                    {
+                        EmpresaId = empresaId
+                    });
 
-                return almacenes;
+                return almacen;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ALMACEN] ObtenerPorEmpresa ERROR: {ex.GetType().Name} - {ex.Message}");
+                Console.WriteLine($"[ObtenerAlmacenActivoPorEmpresaAsync] ERROR: {ex.GetType().Name} - {ex.Message}");
                 Console.WriteLine(ex.StackTrace);
                 throw;
             }
         }
 
 
-
-
-
-        public Task<IEnumerable<Almacen>> ObtenerPorEmpresaAsync(Guid empresaId)
-        {
-            throw new NotImplementedException();
-        }
 
 
     }

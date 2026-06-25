@@ -190,33 +190,26 @@ public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
         return nombre ?? string.Empty;
     }
 
-    public async Task<string>SeleccionarEmpresaAsync(Guid usuarioId, Guid empresaId)
+    public async Task SeleccionarEmpresaAsync(Guid usuarioId, Guid empresaId)
     {
-        if(usuarioId == Guid.Empty || empresaId==Guid.Empty)
+        if (usuarioId == Guid.Empty || empresaId == Guid.Empty)
             throw new InvalidOperationException("IDs inválidos");
-       //validar que el usuaario pertenece a una empresa
-        var relacion= await _usuarioEmpresaRepositorio
+
+        var relacion = await _usuarioEmpresaRepositorio
             .ObtenerPorUsuarioYEmpresaAsync(usuarioId, empresaId);
+
         if (relacion == null)
             throw new UnauthorizedAccessException("El usuario no pertenece a esta empresa");
-       var esSuperAdmin=  await _permisoServicio.EsSuperAdminAsync(usuarioId,empresaId);
-        if(!esSuperAdmin)
-            throw new UnauthorizedAccessException("Solo un SuperAdmin puede cambiar empresa activa");
-        
-        //desactivar todas las empresas del usuario
-        await _usuarioEmpresaRepositorio.DesactivarTodasAsync(usuarioId);
-        //activar empresa seleccionada
-        await _usuarioEmpresaRepositorio.ActivarEmpresaAsync(usuarioId,empresaId);
-        //generar jwt de empresa
-        var tokenEmpresa = _jwtServicio.generarToken(usuarioId, empresaId);
-        //retornar token
-        return tokenEmpresa;
 
-    
-    
-    
-    
-    
-    
+        var esSuperAdmin = await _permisoServicio.EsSuperAdminAsync(usuarioId, empresaId);
+
+        if (!esSuperAdmin)
+            throw new UnauthorizedAccessException("Solo un SuperAdmin puede cambiar empresa activa");
+
+        await _usuarioEmpresaRepositorio.DesactivarTodasAsync(usuarioId);
+        await _usuarioEmpresaRepositorio.ActivarEmpresaAsync(usuarioId, empresaId);
+
+        // ❌ ELIMINADO: JWT de empresa
     }
+
 }

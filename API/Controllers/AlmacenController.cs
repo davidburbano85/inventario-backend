@@ -1,11 +1,13 @@
 using inventarioWebAI.Aplicacion.DTOs.Almacen;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using inventarioWebAI.Aplicacion.Servicios;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
 [ApiController]
 [Route("api/almacenes")]
+[Authorize]
 public class AlmacenController : ControllerBase
 {
     private readonly IAlmacenServicio _servicio;
@@ -43,12 +45,22 @@ public class AlmacenController : ControllerBase
             return StatusCode(500, ex.Message);
         }
     }
-
     [HttpGet]
     public async Task<IActionResult> Obtener()
     {
-        var data = await _servicio.ObtenerAlmacenPorEmpresaAsync();
+        try
+        {
+           var data = await _servicio.ObtenerAlmacenActivoPorEmpresaAsync();
 
-        return Ok(data);
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ALMACEN CONTROLLER ERROR] {ex.Message}");
+            return StatusCode(500, ex.Message);
+        }
     }
+
+
+
 }

@@ -77,41 +77,53 @@ public class AlmacenServicio : IAlmacenServicio
 
         return id;
     }
+
+
+
     // ==============================
     // OBTENER ALMACENES
     // ==============================
-    public async Task<IEnumerable<AlmacenDTO>> ObtenerAlmacenPorEmpresaAsync()
+    public async Task<AlmacenDTO?> ObtenerAlmacenActivoPorEmpresaAsync()
     {
         try
         {
-            var empresaId = _usuarioContext.ObtenerEmpresaId();
             var usuarioId = _usuarioContext.ObtenerAuthUserId();
-
-            if (empresaId == Guid.Empty)
-                throw new InvalidOperationException("EmpresaId inválido.");
 
             if (usuarioId == Guid.Empty)
                 throw new InvalidOperationException("UsuarioId inválido.");
 
-            // 🔐 PERMISOS
+            var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+            if (usuarioEmpresa == null || usuarioEmpresa.EmpresaId == Guid.Empty || !usuarioEmpresa.Activo)
+                throw new InvalidOperationException("No hay empresa activa para el usuario.");
+
+            var empresaId = usuarioEmpresa.EmpresaId;
+
             await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
 
-            var almacenes = await _almacenRepositorio
-                .ObtenerAlmacenPorEmpresaIdAsync(empresaId);
+            var almacen = await _almacenRepositorio.ObtenerAlmacenActivoPorEmpresaAsync(empresaId);
 
-            return almacenes.Select(a => new AlmacenDTO
+            if (almacen is null)
+                return null;
+
+            return new AlmacenDTO
             {
-                Id = a.Id,
-                EmpresaId = a.EmpresaId,
-                Nombre = a.Nombre,
-                Ubicacion = a.Ubicacion,
-                CreatedAt = a.CreatedAt
-            });
+                Id = almacen.Id,
+                EmpresaId = almacen.EmpresaId,
+                Nombre = almacen.Nombre,
+                Ubicacion = almacen.Ubicacion,
+                CreatedAt = almacen.CreatedAt,
+                Activo = almacen.Activo
+            };
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ALMACEN SERVICE] Obtener ERROR: {ex.Message}");
+            Console.WriteLine($"[ALMACEN SERVICE] ObtenerAlmacenActivoPorEmpresaAsync ERROR: {ex.Message}");
             throw;
         }
     }
+
+
+
+
 }

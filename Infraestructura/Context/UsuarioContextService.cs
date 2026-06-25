@@ -25,16 +25,6 @@ namespace inventarioWebAI.Infraestructura.Context
             return userId;
         }
 
-        public Guid ObtenerEmpresaId()
-        {
-            var usuario = _httpcontextAccessor.HttpContext?.User;
 
-            var empresaId = usuario?.FindFirst("empresaId")?.Value;
-
-            if (string.IsNullOrEmpty(empresaId) || !Guid.TryParse(empresaId, out var id))
-                throw new Exception("Empresa no válida en el token");
-
-            return id;
-        }
     }
 }

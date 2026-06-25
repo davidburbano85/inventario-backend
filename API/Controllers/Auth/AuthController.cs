@@ -75,6 +75,8 @@ public class AuthController : ControllerBase
             return StatusCode(500, $"Error al iniciar sesión: {ex.Message}");
         }
     }
+   
+    
     // =========================
     // SIGNUP
     // =========================

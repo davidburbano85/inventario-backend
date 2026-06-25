@@ -22,6 +22,6 @@ public interface IUsuarioEmpresaServicio
     Task ActualizarRolAsync(Guid id, Guid empresaId, RolUsuarioEmpresaDTO rol);
 
     Task<string> EliminarAsync(Guid id);
-    Task<string> SeleccionarEmpresaAsync(Guid usuarioId, Guid empresaId);
+    Task SeleccionarEmpresaAsync(Guid usuarioId, Guid empresaId);
 
 }

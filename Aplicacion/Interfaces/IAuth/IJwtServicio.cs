@@ -2,6 +2,6 @@
 {
     public interface IJwtServicio
     {
-        string generarToken( Guid usuarioId, Guid empresaId   );
+        string generarToken(Guid usuarioId, Guid empresaId);
     }
 }

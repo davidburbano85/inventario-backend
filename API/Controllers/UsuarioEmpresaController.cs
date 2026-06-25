@@ -118,36 +118,35 @@ public class UsuarioEmpresaController : ControllerBase
 
 
     [HttpPost("empresas/seleccionar")]
-    public async Task<IActionResult> SeleccionarEmpresa([FromBody]SeleccionarEmpresaRequest request)
+    public async Task<IActionResult> SeleccionarEmpresa([FromBody] SeleccionarEmpresaRequest request)
     {
         Console.WriteLine($"[SeleccionarEmpresa] EmpresaId: {request.EmpresaId}");
+
         try
         {
-            //obtener usuario autenticado de supa jwt
+            // ?? obtener usuario autenticado desde Supabase JWT
             var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? User.FindFirst("sub")?.Value;
 
             if (string.IsNullOrEmpty(usuarioId) || !Guid.TryParse(usuarioId, out var userIdGuid))
-                return Unauthorized("Usuario invalido");
+                return Unauthorized("Usuario inválido");
 
-            //llamar al servicio
-            var token = await _service.SeleccionarEmpresaAsync(userIdGuid, request.EmpresaId);
-            //responder nuevo jwt de empresa
+            // ?? llamar al servicio (ya no retorna token)
+            await _service.SeleccionarEmpresaAsync(userIdGuid, request.EmpresaId);
+
+            // ? respuesta simple de confirmación
             return Ok(new
             {
-                empresaToken = token,
+                message = "Empresa seleccionada correctamente"
             });
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[SeleccionarEmpresa ERROR] {ex.Message}");
             return StatusCode(500, ex.Message);
-
         }
-
     }
-
-
-  [HttpPost("empresa/login")]
+    [HttpPost("empresa/login")]
     public async Task<IActionResult> LoginEmpresa([FromBody] LoginEmpresaRequest request)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

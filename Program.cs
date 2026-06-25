@@ -15,6 +15,7 @@ using inventarioWebAI.Infraestructura.Context;
 using inventarioWebAI.Infraestructura.RepositoriosDapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -103,6 +104,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     };
     options.Events = new JwtBearerEvents
     {
+        // =================== EVENTOS JWT SUPABASE =================
+     
 
         // ==========================================
         // 🔥 CUANDO LLEGA EL TOKEN
@@ -119,7 +122,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 {
                     var handler = new JwtSecurityTokenHandler();
                     var jwtToken = handler.ReadJwtToken(token); // Intenta leer el token JWT para verificar su formato
-                  
+
                 }
                 catch (Exception ex)
                 {
@@ -169,10 +172,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 return Task.CompletedTask;
 
             }
-    
+
     };
     Console.WriteLine("===== FIN CONFIG JWT =====");
 });
+
+
 
 // ===========================
 // AUTORIZACIÓN
@@ -209,6 +214,7 @@ builder.Services.AddSwaggerGen(c =>// Configura Swagger para incluir la segurida
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
         Description = "Escribe: Bearer {tu token}"
     });
+    
 
     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement// Agrega el requisito de seguridad para que Swagger sepa que las rutas protegidas requieren un token JWT
     {
