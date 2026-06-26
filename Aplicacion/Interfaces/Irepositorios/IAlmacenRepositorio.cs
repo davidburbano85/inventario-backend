@@ -8,10 +8,11 @@ namespace inventarioWebAI.Aplicacion.Interfaces.Irepositorios
         // NUEVO: crear un almacén
         Task<Guid> CrearAlmacenAsync(Almacen almacen);
 
-        // NUEVO: obtener almacenes por empresa
-       // Task<Almacen?> ObtenerAlmacenPorIdAsync(Guid id, Guid empresaId);
-        Task<Almacen?> ObtenerAlmacenActivoPorEmpresaAsync(Guid empresaId);
 
+        Task<IEnumerable<Almacen?>> ObtenerAlmacenesActivosPorEmpresaAsync(Guid empresaId);
+        Task<bool> ActualizarAlmacenAsync(Almacen almacen);
+        Task<Almacen?> ObtenerAlmacenPorIdAsync(Guid id, Guid empresaId);
+        Task<bool> EliminarAlmacenAsync(Guid id, Guid empresaId);
 
     }
 }

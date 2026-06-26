@@ -1,11 +1,12 @@
 ﻿using inventarioWebAI.Aplicacion.DTOs;
 using inventarioWebAI.Aplicacion.DTOs.AuthDTO;
+using inventarioWebAI.Aplicacion.Interfaces.Context;
 using inventarioWebAI.Aplicacion.Interfaces.IAuth;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Infraestructura.Auth;
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System.Text.Json;
-using System.IdentityModel.Tokens.Jwt;
 
 namespace inventarioWebAI.Aplicacion.Servicios.Auth
 {
@@ -16,18 +17,22 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
         private readonly TokenStore _tokenStore;
         private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
         private readonly IJwtServicio _jwtServicio;
+        private readonly IUsuarioContext _usuarioContext;
+
+
 
         public AuthServicio(HttpClient httpClient, 
                             IConfiguration config, 
                             TokenStore tokenStore,
                             IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
-                            IJwtServicio jwtServicio)
+                            IJwtServicio jwtServicio, IUsuarioContext usuarioContext)
         {
             _httpClient = httpClient;
             _config = config;
             _tokenStore = tokenStore;
             _usuarioEmpresaRepositorio= usuarioEmpresaRepositorio;
             _jwtServicio = jwtServicio;
+            _usuarioContext = usuarioContext;
         }
 
         public async Task<AuthRespuestasDto> LoginAsync(string email, string password)
@@ -126,10 +131,55 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
                 UserId = Guid.Parse(userId)
             };
         }
-        public async Task<AuthRespuestasDto> LoginEmpresaAsync(Guid userId, Guid empresaId)
+        //public async Task<AuthRespuestasDto> LoginEmpresaAsync(Guid userId, Guid empresaId)
+        //{
+        //    try
+        //    {
+        //        // 1. Validar relación usuario-empresa
+        //        var relacion = await _usuarioEmpresaRepositorio
+        //            .ObtenerPorUsuarioYEmpresaAsync(userId, empresaId);
+
+        //        if (relacion == null)
+        //            throw new UnauthorizedAccessException("El usuario no pertenece a esta empresa.");
+
+        //        // 2. Desactivar todas las empresas del usuario
+        //        await _usuarioEmpresaRepositorio.DesactivarTodasAsync(userId);
+
+        //        // 3. Activar la empresa seleccionada
+        //        await _usuarioEmpresaRepositorio.ActivarEmpresaAsync(userId, empresaId);
+
+        //        // 4. Generar JWT interno de empresa
+        //        var tokenInterno = _jwtServicio.generarToken(userId, empresaId);
+
+        //        // 5. Retornar respuesta coherente con tu DTO actual
+        //        return new AuthRespuestasDto
+        //        {
+        //            UserId = userId,
+        //            TokenInterno = tokenInterno,
+        //            AccessToken = null,
+        //            RefreshToken = null
+        //        };
+        //    }
+        //    catch (UnauthorizedAccessException ex)
+        //    {
+        //        Console.WriteLine($"[LoginEmpresaAsync] Unauthorized: {ex.Message}");
+        //        throw;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Console.WriteLine($"[LoginEmpresaAsync] ERROR GENERAL: {ex.Message}");
+        //        Console.WriteLine($"[LoginEmpresaAsync] STACK: {ex.StackTrace}");
+
+        //        throw new Exception("Error en LoginEmpresaAsync: " + ex.Message, ex);
+        //    }
+        //}
+        [Obsolete("Reemplazado por SeleccionarEmpresaAsync con Supabase JWT")]
+        public async Task<AuthRespuestasDto> LoginEmpresaAsync(Guid empresaId)
         {
             try
             {
+                var userId = _usuarioContext.ObtenerAuthUserId();
+
                 // 1. Validar relación usuario-empresa
                 var relacion = await _usuarioEmpresaRepositorio
                     .ObtenerPorUsuarioYEmpresaAsync(userId, empresaId);
@@ -146,7 +196,6 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
                 // 4. Generar JWT interno de empresa
                 var tokenInterno = _jwtServicio.generarToken(userId, empresaId);
 
-                // 5. Retornar respuesta coherente con tu DTO actual
                 return new AuthRespuestasDto
                 {
                     UserId = userId,
@@ -163,8 +212,6 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
             catch (Exception ex)
             {
                 Console.WriteLine($"[LoginEmpresaAsync] ERROR GENERAL: {ex.Message}");
-                Console.WriteLine($"[LoginEmpresaAsync] STACK: {ex.StackTrace}");
-
                 throw new Exception("Error en LoginEmpresaAsync: " + ex.Message, ex);
             }
         }

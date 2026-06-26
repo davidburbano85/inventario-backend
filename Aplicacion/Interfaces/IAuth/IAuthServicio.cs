@@ -8,7 +8,8 @@ namespace inventarioWebAI.Aplicacion.Interfaces.IAuth
         Task<AuthRespuestasDto> LoginAsync(string email, string password);// Método para iniciar sesión y obtener un token de acceso
         Task<AuthRespuestasDto> SignupAsync(string email, string password);// Método para registrar un nuevo usuario y obtener un token de acceso
 
-        Task<AuthRespuestasDto> LoginEmpresaAsync(Guid userId, Guid empresaId); 
+        //Task<AuthRespuestasDto> LoginEmpresaAsync(Guid userId, Guid empresaId);
+        Task<AuthRespuestasDto> LoginEmpresaAsync(Guid empresaId);
         Task<AuthRespuestasDto> RefreshTokenAsync(string refreshToken);// Método para refrescar el token de acceso utilizando un token de actualización
     }
 }

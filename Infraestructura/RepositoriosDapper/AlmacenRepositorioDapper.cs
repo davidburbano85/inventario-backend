@@ -72,47 +72,9 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
             }
         }
 
-        //public async Task<Almacen?> ObtenerAlmacenPorIdAsync(Guid id, Guid empresaId)
-        //{
-        //    Console.WriteLine("[ObtenerAlmacenPorIdAsync] INICIO");
+       
 
-        //    try
-        //    {
-        //        using var conn = _db.CrearConexion();
-
-        //        var sql = @"
-        //            SELECT 
-        //                id,
-        //                empresa_id,
-        //                nombre,
-        //                ubicacion,
-        //                created_at,
-        //                updated_at,
-        //                activo
-        //            FROM almacenes
-        //            WHERE id = @Id
-        //              AND empresa_id = @EmpresaId
-        //              AND activo = true;";
-
-        //        var row = await conn.QueryFirstOrDefaultAsync<Almacen>(
-        //            sql,
-        //            new
-        //            {
-        //                Id = id,
-        //                EmpresaId = empresaId
-        //            });
-
-        //        return row;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Console.WriteLine($"[ObtenerAlmacenPorIdAsync] ERROR: {ex.GetType().Name} - {ex.Message}");
-        //        Console.WriteLine(ex.StackTrace);
-        //        throw;
-        //    }
-        //}
-
-        public async Task<Almacen?> ObtenerAlmacenActivoPorEmpresaAsync(Guid empresaId)
+        public async Task<IEnumerable< Almacen?>> ObtenerAlmacenesActivosPorEmpresaAsync(Guid empresaId)
         {
             Console.WriteLine("[ObtenerAlmacenActivoPorEmpresaAsync] INICIO");
 
@@ -132,16 +94,14 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
                 FROM almacenes
                 WHERE empresa_id = @EmpresaId
                   AND activo = true
-                LIMIT 1;";
+                ;";
 
-                var almacen = await conn.QueryFirstOrDefaultAsync<Almacen>(
-                    sql,
-                    new
-                    {
-                        EmpresaId = empresaId
-                    });
-
-                return almacen;
+                return await conn.QueryAsync<Almacen>(
+                     sql,
+                     new
+                     {
+                         EmpresaId = empresaId
+                     });
             }
             catch (Exception ex)
             {
@@ -151,9 +111,125 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper
             }
         }
 
+        public async Task<bool> ActualizarAlmacenAsync(Almacen almacen)
+        {
+            Console.WriteLine("[ActualizarAlmacenAsync] INICIO");
+
+            try
+            {
+                using var conn = _db.CrearConexion();
+
+                var sql = @"
+                    UPDATE almacenes
+                    SET
+                        nombre = @Nombre,
+                        ubicacion = @Ubicacion,
+                        updated_at = timezone('America/Bogota', now())
+                    WHERE id = @Id
+                      AND empresa_id = @EmpresaId
+                      AND activo = true
+                    RETURNING id;";
+
+                var result = await conn.ExecuteScalarAsync<Guid?>(
+                    sql,
+                    new
+                    {
+                        almacen.Id,
+                        almacen.EmpresaId,
+                        almacen.Nombre,
+                        almacen.Ubicacion
+                    });
+
+                var actualizado = result.HasValue;
+
+                Console.WriteLine($"[ActualizarAlmacenAsync] RESULTADO: {actualizado}");
+
+                return actualizado;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"[ActualizarAlmacenAsync] ERROR: {ex.GetType().Name} - {ex.Message}");
+
+                Console.WriteLine(ex.StackTrace);
+
+                throw;
+            }
+        }
 
 
+        public async Task<Almacen?> ObtenerAlmacenPorIdAsync(Guid id, Guid empresaId)
+        {
+            Console.WriteLine("[ObtenerAlmacenPorIdAsync] INICIO");
 
+            try
+            {
+                using var conn = _db.CrearConexion();
+
+                var sql = @"
+            SELECT
+                id,
+                empresa_id,
+                nombre,
+                ubicacion,
+                created_at,
+                updated_at,
+                activo
+            FROM almacenes
+            WHERE id = @Id
+              AND empresa_id = @EmpresaId
+                            ;";
+
+                var almacen = await conn.QueryFirstOrDefaultAsync<Almacen>(
+                    sql,
+                    new
+                    {
+                        Id = id,
+                        EmpresaId = empresaId
+                    });
+
+                Console.WriteLine("[ObtenerAlmacenPorIdAsync] RESULTADO OK");
+
+                return almacen;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ObtenerAlmacenPorIdAsync] ERROR: {ex.GetType().Name} - {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+                throw;
+            }
+        }
+
+        public async Task<bool> EliminarAlmacenAsync(Guid id, Guid empresaId)
+        {
+            Console.WriteLine("[EliminarAlmacenAsync] INICIO");
+
+            try
+            {
+                using var conn = _db.CrearConexion();
+
+                var sql = @"
+                DELETE FROM almacenes
+                WHERE id = @Id
+                  AND empresa_id = @EmpresaId;";
+
+                var filas = await conn.ExecuteAsync(sql, new
+                {
+                    Id = id,
+                    EmpresaId = empresaId
+                });
+
+                Console.WriteLine($"[EliminarAlmacenAsync] Filas afectadas: {filas}");
+
+                return filas > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EliminarAlmacenAsync] ERROR: {ex.GetType().Name} - {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+                throw;
+            }
+        }
     }
 }
 

@@ -11,10 +11,12 @@ namespace inventarioWebAI.Infraestructura.RepositoriosDapper;
 public class UsuarioEmpresaRepositorioDapper : IUsuarioEmpresaRepositorio
 {
     private readonly IDbConnectionFactory _db;
+    private readonly ILogger<UsuarioEmpresaRepositorioDapper> _logger;
 
-    public UsuarioEmpresaRepositorioDapper(IDbConnectionFactory db)
+    public UsuarioEmpresaRepositorioDapper(IDbConnectionFactory db, ILogger<UsuarioEmpresaRepositorioDapper> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     // -------------------------
@@ -250,37 +252,38 @@ public class UsuarioEmpresaRepositorioDapper : IUsuarioEmpresaRepositorio
     // -------------------------
     public async Task<int> ContarAdminsPorEmpresaAsync(Guid empresaId)
     {
-
         try
         {
             using var conn = _db.CrearConexion();
 
             var sql = @"
-                SELECT COUNT(1)
-                FROM usuarios_empresas
-                WHERE empresa_id = @EmpresaId AND rol = @Rol;";
+            SELECT COUNT(1)
+            FROM usuarios_empresas
+            WHERE empresa_id = @EmpresaId
+              AND rol = ANY(@Roles::text[]);";
 
-            var rolDb = RolUsuarioEmpresaMapper.ToDb(RolUsuarioEmpresa.SuperAdmin);
+            var rolesDb = new[]
+            {
+            RolUsuarioEmpresaMapper.ToDb(RolUsuarioEmpresa.SuperAdmin),
+            RolUsuarioEmpresaMapper.ToDb(RolUsuarioEmpresa.Admin)
+        };
 
+            _logger.LogInformation("SQL ContarAdmins: {sql}", sql);
 
             var result = await conn.ExecuteScalarAsync<int>(sql, new
             {
                 EmpresaId = empresaId,
-                Rol = rolDb
+                Roles = rolesDb   // ✔️ IMPORTANTE: debe llamarse Roles
             });
-
 
             return result;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ContarAdmins] ERROR: {ex.GetType().Name} - {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
+            _logger.LogError(ex, "[ContarAdmins] Error al contar admins por empresa");
             throw;
         }
     }
-
-
 
     public async Task<UsuarioEmpresa> ObtenerPorUsuarioYEmpresaAsync(Guid usuarioId, Guid empresaId)
     {

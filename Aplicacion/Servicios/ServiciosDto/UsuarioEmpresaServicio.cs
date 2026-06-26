@@ -1,16 +1,230 @@
 ﻿
+//using inventarioWebAI.Aplicacion.DTOs.UsuarioEmpresa;
+//using inventarioWebAI.Aplicacion.Enums; // necesario para enum RolUsuarioEmpresaDTO
+//using inventarioWebAI.Aplicacion.Interfaces.IAuth;
+//using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
+//using inventarioWebAI.Aplicacion.Interfaces.Irepositorios; // requerido para repositorios
+//using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+//using inventarioWebAI.Dominio.Enums;
+//using inventarioWebAI.Infraestructura.Mapper.MapperDto;
+//using System.Linq;
+
+//namespace inventarioWebAI.Aplicacion.Servicios;
+
+
+//public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
+//{
+//    private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
+//    private readonly IEmpresaRepositorio _empresaRepositorio;
+//    private readonly IUsuarioRepositorio _usuarioRepositorio;
+//    private readonly IPermisoServicio _permisoServicio;
+//    private readonly IJwtServicio _jwtServicio;
+
+//    public UsuarioEmpresaServicio(IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+//                                   IEmpresaRepositorio empresaRepositorio,
+//                                   IUsuarioRepositorio usuarioRepositorio,
+//                                   IPermisoServicio permisoServicio,
+//                                   IJwtServicio jwtServicio)
+//    {
+//        _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
+//        _empresaRepositorio = empresaRepositorio;
+//        _usuarioRepositorio = usuarioRepositorio;
+//        _permisoServicio = permisoServicio;
+//        _jwtServicio = jwtServicio;
+//    }
+
+//    public async Task<UsuarioEmpresaDTO?> ObtenerPorIdAsync(Guid id, Guid empresaId)
+//    {
+
+//        if (id == Guid.Empty)
+//        {
+//            return null;
+//        }
+
+//        var entity = await _usuarioEmpresaRepositorio.ObtenerPorIdAsync(id);
+//        await _permisoServicio.ValidarAdminOSuperAdminAsync(empresaId, id);
+//        if (entity == null)
+//            return null;
+
+//        var resultado = new UsuarioEmpresaDTO
+//        {
+//            Id = entity.Id,
+//            EmpresaId = entity.EmpresaId,
+//            UsuarioId = entity.UsuarioId,
+//            Rol = RolUsuarioEmpresaMapperDto.ToDto(entity.Rol),
+//            CreatedAt = entity.CreatedAt,
+//            UpdatedAt = entity.UpdatedAt
+//        };
+//        return resultado;
+//    }
+
+//    public async Task<IEnumerable<UsuarioEmpresaDTO>> ObtenerPorEmpresaUsuarioAsync(
+//     Guid empresaId,
+//     Guid usuarioId)
+//    {
+//        if (empresaId == Guid.Empty || usuarioId == Guid.Empty)
+//            return Enumerable.Empty<UsuarioEmpresaDTO>();
+
+//        var list = await _usuarioEmpresaRepositorio.ObtenerPorEmpresaUsuarioAsync(empresaId, usuarioId);
+//        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
+
+//        return list.Select(e => new UsuarioEmpresaDTO
+//        {
+//            Id = e.Id,
+//            EmpresaId = e.EmpresaId,
+//            UsuarioId = e.UsuarioId,
+//            Rol = RolUsuarioEmpresaMapperDto.ToDto(e.Rol),
+//            CreatedAt = e.CreatedAt,
+//            UpdatedAt = e.UpdatedAt
+//        });
+//    }
+
+//    public async Task<Guid> CrearAsync(Guid empresaId, Guid usuarioId, RolUsuarioEmpresaDTO rol)
+//    {
+
+//        if (empresaId == Guid.Empty)
+//        {
+//            throw new InvalidOperationException("El ID de la empresa es inválido.");
+//        }
+
+//        if (usuarioId == Guid.Empty)
+//        {
+//            throw new InvalidOperationException("El ID del usuario es inválido.");
+//        }
+
+//        var empresa = await _empresaRepositorio.ObtenerEmpresaPorIdAsync(empresaId);
+//        if (empresa == null)
+//        {
+//            throw new InvalidOperationException("La empresa no existe.");
+//        }
+
+//        var usuario = await _usuarioRepositorio.ObtenerPorIdAsync(usuarioId);
+//        if (usuario == null)
+//        {
+//            throw new InvalidOperationException("El usuario no existe.");
+//        }
+
+//        var rolDomain = RolUsuarioEmpresaMapperDto.ToDomain(rol);
+
+//        var resultado = await _usuarioEmpresaRepositorio.CrearAsync(empresaId, usuarioId, rolDomain);
+
+//        return resultado;
+//    }
+
+//    public async Task ActualizarRolAsync(Guid id, Guid empresaId, RolUsuarioEmpresaDTO rol)
+//    {
+
+//        if (id == Guid.Empty)
+//        {
+//            throw new InvalidOperationException("El ID es inválido.");
+//        }
+
+//        if (empresaId == Guid.Empty)
+//        {
+//            throw new InvalidOperationException("El ID de la empresa es inválido.");
+//        }
+
+//        var relacionesUsuario = await _usuarioEmpresaRepositorio.ObtenerPorEmpresaUsuarioAsync(empresaId, id);
+
+//        var relacion = relacionesUsuario.FirstOrDefault(r => r.EmpresaId == empresaId);
+//        if (relacion == null)
+//        {
+//            throw new InvalidOperationException("La relación usuario-empresa no existe.");
+//        }
+
+//        var nuevoRol = RolUsuarioEmpresaMapperDto.ToDomain(rol);
+
+//        if (relacion.Rol == RolUsuarioEmpresa.SuperAdmin && nuevoRol != RolUsuarioEmpresa.SuperAdmin)
+//        {
+//            var admins = await _usuarioEmpresaRepositorio.ContarAdminsPorEmpresaAsync(empresaId);
+
+//            if (admins <= 1)
+//            {
+//                throw new InvalidOperationException("No se puede quitar el último administrador de la empresa.");
+//            }
+//        }
+
+//        var actualizado = await _usuarioEmpresaRepositorio.ActualizarRolAsync(id, empresaId, nuevoRol);
+
+//        if (!actualizado)
+//        {
+//            throw new Exception("No se pudo actualizar el rol del usuario en la empresa.");
+//        }
+
+//    }
+
+//    public async Task<string> EliminarAsync(Guid id)
+//    {
+
+//        if (id == Guid.Empty)
+//        {
+//            throw new InvalidOperationException("El ID es inválido.");
+//        }
+
+//        var relacion = await _usuarioEmpresaRepositorio.ObtenerPorIdAsync(id);
+
+//        if (relacion == null)
+//        {
+//            throw new InvalidOperationException("La relación usuario-empresa no existe.");
+//        }
+
+//        if (relacion.Rol == RolUsuarioEmpresa.Admin)
+//        {
+//            var admins = await _usuarioEmpresaRepositorio.ContarAdminsPorEmpresaAsync(relacion.EmpresaId);
+
+//            if (admins <= 1)
+//            {
+//                throw new InvalidOperationException("No se puede eliminar al último administrador de la empresa.");
+//            }
+//        }
+
+//        var nombre = await _usuarioEmpresaRepositorio.ObtenerNombreUsuarioAsync(id);
+
+//        var eliminado = await _usuarioEmpresaRepositorio.EliminarAsync(id);
+
+//        if (!eliminado)
+//        {
+//            throw new Exception("No se pudo eliminar la relación usuario-empresa.");
+//        }
+
+//        return nombre ?? string.Empty;
+//    }
+
+//    public async Task SeleccionarEmpresaAsync(Guid usuarioId, Guid empresaId)
+//    {
+//        if (usuarioId == Guid.Empty || empresaId == Guid.Empty)
+//            throw new InvalidOperationException("IDs inválidos");
+
+//        var relacion = await _usuarioEmpresaRepositorio
+//            .ObtenerPorUsuarioYEmpresaAsync(usuarioId, empresaId);
+
+//        if (relacion == null)
+//            throw new UnauthorizedAccessException("El usuario no pertenece a esta empresa");
+
+//        var esSuperAdmin = await _permisoServicio.EsSuperAdminAsync(usuarioId, empresaId);
+
+//        if (!esSuperAdmin)
+//            throw new UnauthorizedAccessException("Solo un SuperAdmin puede cambiar empresa activa");
+
+//        await _usuarioEmpresaRepositorio.DesactivarTodasAsync(usuarioId);
+//        await _usuarioEmpresaRepositorio.ActivarEmpresaAsync(usuarioId, empresaId);
+
+//        // ❌ ELIMINADO: JWT de empresa
+//    }
+
+//}
+
+
 using inventarioWebAI.Aplicacion.DTOs.UsuarioEmpresa;
-using inventarioWebAI.Aplicacion.Enums; // necesario para enum RolUsuarioEmpresaDTO
-using inventarioWebAI.Aplicacion.Interfaces.IAuth;
+using inventarioWebAI.Aplicacion.Enums;
+using inventarioWebAI.Aplicacion.Interfaces.Context;
 using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
-using inventarioWebAI.Aplicacion.Interfaces.Irepositorios; // requerido para repositorios
+using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using inventarioWebAI.Dominio.Enums;
 using inventarioWebAI.Infraestructura.Mapper.MapperDto;
-using System.Linq;
 
 namespace inventarioWebAI.Aplicacion.Servicios;
-
 
 public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
 {
@@ -18,35 +232,43 @@ public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
     private readonly IEmpresaRepositorio _empresaRepositorio;
     private readonly IUsuarioRepositorio _usuarioRepositorio;
     private readonly IPermisoServicio _permisoServicio;
-    private readonly IJwtServicio _jwtServicio;
+    private readonly IUsuarioContext _usuarioContext;
 
-    public UsuarioEmpresaServicio(IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
-                                   IEmpresaRepositorio empresaRepositorio,
-                                   IUsuarioRepositorio usuarioRepositorio,
-                                   IPermisoServicio permisoServicio,
-                                   IJwtServicio jwtServicio)
+    public UsuarioEmpresaServicio(
+        IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+        IEmpresaRepositorio empresaRepositorio,
+        IUsuarioRepositorio usuarioRepositorio,
+        IPermisoServicio permisoServicio,
+        IUsuarioContext usuarioContext)
     {
         _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
         _empresaRepositorio = empresaRepositorio;
         _usuarioRepositorio = usuarioRepositorio;
         _permisoServicio = permisoServicio;
-        _jwtServicio = jwtServicio;
+        _usuarioContext = usuarioContext;
     }
 
-    public async Task<UsuarioEmpresaDTO?> ObtenerPorIdAsync(Guid id, Guid empresaId)
+    // -------------------------
+    // OBTENER POR ID
+    // -------------------------
+    public async Task<UsuarioEmpresaDTO?> ObtenerPorIdAsync(Guid id)
     {
-
         if (id == Guid.Empty)
-        {
             return null;
-        }
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresa.EmpresaId);
 
         var entity = await _usuarioEmpresaRepositorio.ObtenerPorIdAsync(id);
-        await _permisoServicio.ValidarAdminOSuperAdminAsync(empresaId, id);
         if (entity == null)
             return null;
 
-        var resultado = new UsuarioEmpresaDTO
+        return new UsuarioEmpresaDTO
         {
             Id = entity.Id,
             EmpresaId = entity.EmpresaId,
@@ -55,18 +277,27 @@ public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
             CreatedAt = entity.CreatedAt,
             UpdatedAt = entity.UpdatedAt
         };
-        return resultado;
     }
 
-    public async Task<IEnumerable<UsuarioEmpresaDTO>> ObtenerPorEmpresaUsuarioAsync(
-     Guid empresaId,
-     Guid usuarioId)
+    // -------------------------
+    // LISTAR
+    // -------------------------
+    public async Task<IEnumerable<UsuarioEmpresaDTO>> ObtenerPorEmpresaUsuarioAsync(Guid usuarioId)
     {
-        if (empresaId == Guid.Empty || usuarioId == Guid.Empty)
+        if (usuarioId == Guid.Empty)
             return Enumerable.Empty<UsuarioEmpresaDTO>();
 
-        var list = await _usuarioEmpresaRepositorio.ObtenerPorEmpresaUsuarioAsync(empresaId, usuarioId);
-        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
+        var authUserId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(authUserId);
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(authUserId, empresa.EmpresaId);
+
+        var list = await _usuarioEmpresaRepositorio.ObtenerPorEmpresaUsuarioAsync(
+            empresa.EmpresaId,
+            usuarioId);
 
         return list.Select(e => new UsuarioEmpresaDTO
         {
@@ -79,137 +310,140 @@ public class UsuarioEmpresaServicio : IUsuarioEmpresaServicio
         });
     }
 
-    public async Task<Guid> CrearAsync(Guid empresaId, Guid usuarioId, RolUsuarioEmpresaDTO rol)
+    // -------------------------
+    // CREAR
+    // -------------------------
+    public async Task<Guid> CrearAsync(Guid usuarioId, RolUsuarioEmpresaDTO rol)
     {
-
-        if (empresaId == Guid.Empty)
-        {
-            throw new InvalidOperationException("El ID de la empresa es inválido.");
-        }
-
         if (usuarioId == Guid.Empty)
-        {
-            throw new InvalidOperationException("El ID del usuario es inválido.");
-        }
+            throw new InvalidOperationException("Usuario inválido.");
 
-        var empresa = await _empresaRepositorio.ObtenerEmpresaPorIdAsync(empresaId);
-        if (empresa == null)
-        {
-            throw new InvalidOperationException("La empresa no existe.");
-        }
+        var authUserId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(authUserId);
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(authUserId, empresa.EmpresaId);
 
         var usuario = await _usuarioRepositorio.ObtenerPorIdAsync(usuarioId);
         if (usuario == null)
-        {
             throw new InvalidOperationException("El usuario no existe.");
-        }
 
         var rolDomain = RolUsuarioEmpresaMapperDto.ToDomain(rol);
 
-        var resultado = await _usuarioEmpresaRepositorio.CrearAsync(empresaId, usuarioId, rolDomain);
-
-        return resultado;
+        return await _usuarioEmpresaRepositorio.CrearAsync(
+            empresa.EmpresaId,
+            usuarioId,
+            rolDomain);
     }
 
-    public async Task ActualizarRolAsync(Guid id, Guid empresaId, RolUsuarioEmpresaDTO rol)
+    // -------------------------
+    // ACTUALIZAR ROL
+    // -------------------------
+    public async Task ActualizarRolAsync(Guid usuarioId, RolUsuarioEmpresaDTO rol)
     {
+        if (usuarioId == Guid.Empty)
+            throw new InvalidOperationException("Usuario inválido.");
 
-        if (id == Guid.Empty)
-        {
-            throw new InvalidOperationException("El ID es inválido.");
-        }
+        var authUserId = _usuarioContext.ObtenerAuthUserId();
 
-        if (empresaId == Guid.Empty)
-        {
-            throw new InvalidOperationException("El ID de la empresa es inválido.");
-        }
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(authUserId);
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-        var relacionesUsuario = await _usuarioEmpresaRepositorio.ObtenerPorEmpresaUsuarioAsync(empresaId, id);
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(authUserId, empresa.EmpresaId);
 
-        var relacion = relacionesUsuario.FirstOrDefault(r => r.EmpresaId == empresaId);
+        var relacion = await _usuarioEmpresaRepositorio
+            .ObtenerPorUsuarioYEmpresaAsync(usuarioId, empresa.EmpresaId);
+
         if (relacion == null)
-        {
-            throw new InvalidOperationException("La relación usuario-empresa no existe.");
-        }
-      
+            throw new InvalidOperationException("Relación no existe.");
+
         var nuevoRol = RolUsuarioEmpresaMapperDto.ToDomain(rol);
 
-        if (relacion.Rol == RolUsuarioEmpresa.SuperAdmin && nuevoRol != RolUsuarioEmpresa.SuperAdmin)
+        if (relacion.Rol == RolUsuarioEmpresa.SuperAdmin &&
+            nuevoRol != RolUsuarioEmpresa.SuperAdmin)
         {
-            var admins = await _usuarioEmpresaRepositorio.ContarAdminsPorEmpresaAsync(empresaId);
+            var admins = await _usuarioEmpresaRepositorio
+                .ContarAdminsPorEmpresaAsync(empresa.EmpresaId);
 
             if (admins <= 1)
-            {
-                throw new InvalidOperationException("No se puede quitar el último administrador de la empresa.");
-            }
+                throw new InvalidOperationException("No se puede quitar el último SuperAdmin.");
         }
 
-        var actualizado = await _usuarioEmpresaRepositorio.ActualizarRolAsync(id, empresaId, nuevoRol);
+        var ok = await _usuarioEmpresaRepositorio.ActualizarRolAsync(
+            usuarioId,
+            empresa.EmpresaId,
+            nuevoRol);
 
-        if (!actualizado)
-        {
-            throw new Exception("No se pudo actualizar el rol del usuario en la empresa.");
-        }
-
+        if (!ok)
+            throw new Exception("No se pudo actualizar el rol.");
     }
 
+    // -------------------------
+    // ELIMINAR
+    // -------------------------
     public async Task<string> EliminarAsync(Guid id)
     {
-
         if (id == Guid.Empty)
-        {
-            throw new InvalidOperationException("El ID es inválido.");
-        }
+            throw new InvalidOperationException("ID inválido.");
+
+        var authUserId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(authUserId);
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(authUserId, empresa.EmpresaId);
 
         var relacion = await _usuarioEmpresaRepositorio.ObtenerPorIdAsync(id);
-
         if (relacion == null)
-        {
-            throw new InvalidOperationException("La relación usuario-empresa no existe.");
-        }
+            throw new InvalidOperationException("No existe la relación.");
 
         if (relacion.Rol == RolUsuarioEmpresa.Admin)
         {
-            var admins = await _usuarioEmpresaRepositorio.ContarAdminsPorEmpresaAsync(relacion.EmpresaId);
+            var admins = await _usuarioEmpresaRepositorio
+                .ContarAdminsPorEmpresaAsync(empresa.EmpresaId);
 
             if (admins <= 1)
-            {
-                throw new InvalidOperationException("No se puede eliminar al último administrador de la empresa.");
-            }
+                throw new InvalidOperationException("No se puede eliminar el último Admin.");
         }
 
-        var nombre = await _usuarioEmpresaRepositorio.ObtenerNombreUsuarioAsync(id);
+        var nombre = await _usuarioEmpresaRepositorio
+            .ObtenerNombreUsuarioAsync(id);
 
-        var eliminado = await _usuarioEmpresaRepositorio.EliminarAsync(id);
+        var ok = await _usuarioEmpresaRepositorio.EliminarAsync(id);
 
-        if (!eliminado)
-        {
-            throw new Exception("No se pudo eliminar la relación usuario-empresa.");
-        }
+        if (!ok)
+            throw new Exception("No se pudo eliminar la relación.");
 
         return nombre ?? string.Empty;
     }
 
-    public async Task SeleccionarEmpresaAsync(Guid usuarioId, Guid empresaId)
+    // -------------------------
+    // SELECCIONAR EMPRESA
+    // -------------------------
+    public async Task SeleccionarEmpresaAsync(Guid empresaId)
     {
-        if (usuarioId == Guid.Empty || empresaId == Guid.Empty)
-            throw new InvalidOperationException("IDs inválidos");
+        if (empresaId == Guid.Empty)
+            throw new InvalidOperationException("Empresa inválida.");
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
         var relacion = await _usuarioEmpresaRepositorio
             .ObtenerPorUsuarioYEmpresaAsync(usuarioId, empresaId);
 
         if (relacion == null)
-            throw new UnauthorizedAccessException("El usuario no pertenece a esta empresa");
+            throw new UnauthorizedAccessException("El usuario no pertenece a la empresa.");
 
-        var esSuperAdmin = await _permisoServicio.EsSuperAdminAsync(usuarioId, empresaId);
+        var esSuperAdmin = await _permisoServicio
+            .EsSuperAdminAsync(usuarioId, empresaId);
 
         if (!esSuperAdmin)
-            throw new UnauthorizedAccessException("Solo un SuperAdmin puede cambiar empresa activa");
+            throw new UnauthorizedAccessException("Solo SuperAdmin puede cambiar empresa activa.");
 
         await _usuarioEmpresaRepositorio.DesactivarTodasAsync(usuarioId);
         await _usuarioEmpresaRepositorio.ActivarEmpresaAsync(usuarioId, empresaId);
-
-        // ❌ ELIMINADO: JWT de empresa
     }
-
 }

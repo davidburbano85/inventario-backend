@@ -12,7 +12,7 @@ public class JwtServicio : IJwtServicio
     {
         _config = config;
     }
-
+    [Obsolete("Se elimina. Autenticación ahora es Supabase JWT")]
     public string generarToken(Guid usuarioId, Guid empresaId)
     {
         var claims = new List<Claim>
