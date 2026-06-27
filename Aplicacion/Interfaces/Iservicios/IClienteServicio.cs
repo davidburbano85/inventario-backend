@@ -1,21 +1,16 @@
-﻿// Ubicación: /src/Aplicacion/Interfaces/IClienteServicio.cs
-
-
-// Ubicación: /src/Aplicacion/Interfaces/IClienteServicio.cs
-
-using inventarioWebAI.Aplicacion.DTOs.Cliente;
+﻿using inventarioWebAI.Aplicacion.DTOs.Cliente;
 
 namespace inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 
-// NUEVO: interfaz para gestión de clientes
-// POR QUÉ:
-// - Mantener consistencia con patrón Servicio + Interfaz
-// - Permitir inyección de dependencias
 public interface IClienteServicio
 {
-    // NUEVO: obtener clientes por empresa
-    Task<IEnumerable<ClienteDTO>> ObtenerPorEmpresa(Guid empresaId);
+    Task<Guid> CrearAsync(string nombre, string? contacto);
 
-    // NUEVO: crear cliente
-    Task<Guid> Crear(CrearClienteDTO dto);
+    Task<IEnumerable<ClienteDTO>> ObtenerPorEmpresaAsync();
+
+    Task<ClienteDTO?> ObtenerPorIdAsync(Guid clienteId);
+
+    Task<bool> ActualizarAsync(Guid clienteId, string nombre, string? contacto);
+
+    Task<bool> EliminarAsync(Guid clienteId);
 }

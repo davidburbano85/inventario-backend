@@ -1,13 +1,10 @@
-﻿using inventarioWebAI.Dominio.Entidades;
-
-public class Producto
+﻿public class Producto
 {
     public Guid Id { get; set; }
 
     public Guid EmpresaId { get; set; }
 
-    public Guid? CategoriaId { get; set; }
-    public Categoria? Categoria { get; set; }
+    public Guid? CategoriaId { get; set; } // FK opcional según diseño DB
 
     public string Nombre { get; set; } = string.Empty;
 

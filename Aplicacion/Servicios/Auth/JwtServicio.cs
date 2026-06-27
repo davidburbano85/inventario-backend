@@ -3,6 +3,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+[Obsolete("Se elimina. Autenticación ahora es Supabase JWT")]
 
 public class JwtServicio : IJwtServicio
 {
@@ -13,6 +14,7 @@ public class JwtServicio : IJwtServicio
         _config = config;
     }
     [Obsolete("Se elimina. Autenticación ahora es Supabase JWT")]
+
     public string generarToken(Guid usuarioId, Guid empresaId)
     {
         var claims = new List<Claim>

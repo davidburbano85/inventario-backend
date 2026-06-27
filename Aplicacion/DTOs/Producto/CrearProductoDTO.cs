@@ -6,7 +6,7 @@ public class CrearProductoDTO
 {
     public Guid EmpresaId { get; set; }
 
-    public Guid? CategoriaId { get; set; }
+    public Guid CategoriaId { get; set; }
 
     public string Nombre { get; set; } = string.Empty;
 

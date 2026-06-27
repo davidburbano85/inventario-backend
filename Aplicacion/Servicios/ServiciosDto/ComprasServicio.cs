@@ -1,238 +1,188 @@
-﻿//// Ubicación: /src/Aplicacion/Servicios/ComprasServicio.cs
+﻿using inventarioWebAI.Aplicacion.DTOs.CompraDetalle;
+using inventarioWebAI.Aplicacion.DTOs.Comprar;
+using inventarioWebAI.Aplicacion.Interfaces.Context;
+using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
+using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Dominio.Entidades;
 
-//using Dapper;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces;
-//using inventarioWebAI.Infraestructura.conexion;
-//using System.Data;
+namespace inventarioWebAI.Aplicacion.Servicios;
 
-//namespace inventarioWebAI.Aplicacion.Servicios;
+public class ComprasServicio : IComprasServicio
+{
+    private readonly IComprasRepositorio _comprasRepositorio;
+    private readonly ICompraDetalleRepositorio _detalleRepositorio;
+    private readonly IUsuarioContext _usuarioContext;
+    private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
+    private readonly IPermisoServicio _permisoServicio;
+    private readonly IUnitOfWork _unitOfWork ;
 
-//public class ComprasServicio : IComprasServicio
-//{
-//    private readonly DbConnectionFactory _db;
+    public ComprasServicio(
+        IComprasRepositorio comprasRepositorio,
+        ICompraDetalleRepositorio detalleRepositorio,
+        IUsuarioContext usuarioContext,
+        IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+        IPermisoServicio permisoServicio,
+        IUnitOfWork unitOfWork)
+    {
+        _comprasRepositorio = comprasRepositorio;
+        _detalleRepositorio = detalleRepositorio;
+        _usuarioContext = usuarioContext;
+        _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
+        _permisoServicio = permisoServicio;
+        _unitOfWork = unitOfWork;
+    }
 
-//    public ComprasServicio(DbConnectionFactory db)
-//    {
-//        _db = db;
-//    }
+    public async Task<Guid> CrearAsync(Guid proveedorId, List<CrearCompraDetalleDTO> detalles)
+    {
+        if (proveedorId == Guid.Empty)
+            throw new InvalidOperationException("Proveedor inválido.");
 
-//    public async Task<IEnumerable<CompraDTO>> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        using var connection = _db.CrearConexion();
+        if (detalles == null || !detalles.Any())
+            throw new InvalidOperationException("La compra debe tener detalles.");
 
-//        var sql = @"
-//            SELECT
-//                id,
-//                empresa_id AS EmpresaId,
-//                proveedor_id AS ProveedorId,
-//                total,
-//                created_at AS CreatedAt
-//            FROM compras
-//            WHERE empresa_id = @EmpresaId
-//            ORDER BY created_at DESC
-//        ";
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        return await connection.QueryAsync<CompraDTO>(sql, new { EmpresaId = empresaId });
-//    }
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//    public async Task<Guid> Crear(CrearCompraDTO dto)
-//    {
-//        using var connection = _db.CrearConexion();
-//        connection.Open();
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//        using var transaction = connection.BeginTransaction();
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresa.EmpresaId);
 
-//        try
-//        {
-//            // EXISTENTE: validaciones básicas
-//            if (dto.EmpresaId == Guid.Empty)
-//                throw new InvalidOperationException("EmpresaId es requerido.");
+        var total = detalles.Sum(d => d.Cantidad * d.Precio);
 
-//            if (dto.AlmacenId == Guid.Empty)
-//                throw new InvalidOperationException("AlmacenId es requerido.");
+        var compra = new Compra
+        {
+            EmpresaId = empresa.EmpresaId,
+            ProveedorId = proveedorId,
+            Total = total
+        };
 
-//            if (dto.UsuarioId == Guid.Empty)
-//                throw new InvalidOperationException("UsuarioId es requerido.");
+        var detalleEntities = detalles.Select(d => new CompraDetalle
+        {
+            ProductoId = d.ProductoId,
+            Cantidad = d.Cantidad,
+            Precio = d.Precio
+        });
 
-//            if (!dto.Detalles.Any())
-//                throw new InvalidOperationException("La compra debe tener al menos un detalle.");
+        using var uow = _unitOfWork;
 
-//            foreach (var item in dto.Detalles)
-//            {
-//                if (item.Cantidad <= 0)
-//                    throw new InvalidOperationException("La cantidad debe ser mayor a 0.");
+        try
+        {
+            // 🔥 1. CREAR COMPRA dentro de la transacción
+            var compraId = await _comprasRepositorio.CrearCompraAsync(
+                uow.Connection,
+                uow.Transaction,
+                compra
+            );
 
-//                if (item.Precio < 0)
-//                    throw new InvalidOperationException("El precio no puede ser negativo.");
-//            }
+            // 🔥 2. CREAR DETALLES dentro de la misma transacción
+            await _detalleRepositorio.InsertarAsync(
+                uow.Connection,
+                uow.Transaction,
+                compraId,
+                empresa.EmpresaId,
+                detalleEntities
+            );
 
-//            // NUEVO: validación multi-tenant usuario → empresa
-//            var sqlValidarUsuarioEmpresa = @"
-//                SELECT pertenece_empresa(@EmpresaId);
-//            ";
+            // 🔥 3. CONFIRMAR TODO
+            uow.Commit();
 
-//            var pertenece = await connection.ExecuteScalarAsync<bool>(sqlValidarUsuarioEmpresa, new
-//            {
-//                dto.EmpresaId
-//            }, transaction);
+            return compraId;
+        }
+        catch
+        {
+            // 🔥 4. ROLLBACK TOTAL
+            uow.Rollback();
+            throw;
+        }
+    }
 
-//            if (!pertenece)
-//                throw new UnauthorizedAccessException("El usuario no pertenece a la empresa."); // NUEVO
 
-//            // EXISTENTE: validar almacén pertenece a empresa
-//            var sqlValidarAlmacen = @"
-//                SELECT COUNT(1)
-//                FROM almacenes
-//                WHERE id = @AlmacenId AND empresa_id = @EmpresaId;
-//            ";
+    public async Task<IEnumerable<CompraDTO>> ObtenerPorEmpresaAsync()
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//            var almacenValido = await connection.ExecuteScalarAsync<int>(sqlValidarAlmacen, new
-//            {
-//                dto.AlmacenId,
-//                dto.EmpresaId
-//            }, transaction);
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//            if (almacenValido == 0)
-//                throw new InvalidOperationException("El almacén no pertenece a la empresa.");
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//            // EXISTENTE: validación batch productos
-//            var productoIds = dto.Detalles.Select(x => x.ProductoId).Distinct().ToList();
+        var compras = await _comprasRepositorio.ObtenerPorEmpresaAsync(empresa.EmpresaId);
 
-//            var sqlValidarProductos = @"
-//                SELECT id
-//                FROM productos
-//                WHERE empresa_id = @EmpresaId
-//                  AND id = ANY(@ProductoIds);
-//            ";
+        return compras.Select(c => new CompraDTO
+        {
+            Id = c!.Id,
+            EmpresaId = c.EmpresaId,
+            ProveedorId = c.ProveedorId,
+            Total = c.Total,
+            CreatedAt = c.CreatedAt,
+            UpdatedAt = c.UpdatedAt,
+            Activo = c.Activo
+        });
+    }
 
-//            var productosValidos = (await connection.QueryAsync<Guid>(sqlValidarProductos, new
-//            {
-//                dto.EmpresaId,
-//                ProductoIds = productoIds
-//            }, transaction)).ToHashSet();
+    public async Task<CompraDTO?> ObtenerPorIdAsync(Guid compraId)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//            foreach (var id in productoIds)
-//            {
-//                if (!productosValidos.Contains(id))
-//                    throw new InvalidOperationException($"El producto {id} no pertenece a la empresa.");
-//            }
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//            var total = dto.Detalles.Sum(x => x.Cantidad * x.Precio);
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//            var sqlCompra = @"
-//                INSERT INTO compras (
-//                    empresa_id,
-//                    proveedor_id,
-//                    total
-//                )
-//                VALUES (
-//                    @EmpresaId,
-//                    @ProveedorId,
-//                    @Total
-//                )
-//                RETURNING id;
-//            ";
+        var compra = await _comprasRepositorio.ObtenerPorIdAsync(compraId, empresa.EmpresaId);
 
-//            var compraId = await connection.ExecuteScalarAsync<Guid>(sqlCompra, new
-//            {
-//                dto.EmpresaId,
-//                dto.ProveedorId,
-//                Total = total
-//            }, transaction);
+        if (compra == null)
+            return null;
 
-//            var sqlDetalle = @"
-//                INSERT INTO compras_detalle (
-//                    empresa_id,
-//                    compra_id,
-//                    producto_id,
-//                    cantidad,
-//                    precio
-//                )
-//                VALUES (
-//                    @EmpresaId,
-//                    @CompraId,
-//                    @ProductoId,
-//                    @Cantidad,
-//                    @Precio
-//                );
-//            ";
+        return new CompraDTO
+        {
+            Id = compra.Id,
+            EmpresaId = compra.EmpresaId,
+            ProveedorId = compra.ProveedorId,
+            Total = compra.Total,
+            CreatedAt = compra.CreatedAt,
+            UpdatedAt = compra.UpdatedAt,
+            Activo = compra.Activo
+        };
+    }
 
-//            var sqlEnsureStock = @"
-//                INSERT INTO stock_actual (
-//                    empresa_id,
-//                    producto_id,
-//                    almacen_id,
-//                    cantidad
-//                )
-//                VALUES (
-//                    @EmpresaId,
-//                    @ProductoId,
-//                    @AlmacenId,
-//                    0
-//                )
-//                ON CONFLICT (empresa_id, producto_id, almacen_id) DO NOTHING;
-//            ";
+    public async Task<IEnumerable<CompraDetalleDTO>> ObtenerDetalleAsync(Guid compraId)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//            var sqlMovimiento = @"
-//                INSERT INTO movimientos_inventario (
-//                    empresa_id,
-//                    producto_id,
-//                    almacen_id,
-//                    usuario_id,
-//                    tipo,
-//                    cantidad,
-//                    motivo
-//                )
-//                VALUES (
-//                    @EmpresaId,
-//                    @ProductoId,
-//                    @AlmacenId,
-//                    @UsuarioId,
-//                    'entrada',
-//                    @Cantidad,
-//                    @Motivo
-//                );
-//            ";
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//            foreach (var item in dto.Detalles)
-//            {
-//                await connection.ExecuteAsync(sqlDetalle, new
-//                {
-//                    EmpresaId = dto.EmpresaId,
-//                    CompraId = compraId,
-//                    item.ProductoId,
-//                    item.Cantidad,
-//                    item.Precio
-//                }, transaction);
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//                await connection.ExecuteAsync(sqlEnsureStock, new
-//                {
-//                    dto.EmpresaId,
-//                    item.ProductoId,
-//                    dto.AlmacenId
-//                }, transaction);
+        var detalles = await _detalleRepositorio.ObtenerPorCompraAsync(compraId, empresa.EmpresaId);
 
-//                await connection.ExecuteAsync(sqlMovimiento, new
-//                {
-//                    dto.EmpresaId,
-//                    item.ProductoId,
-//                    dto.AlmacenId,
-//                    dto.UsuarioId,
-//                    item.Cantidad,
-//                    Motivo = "Compra"
-//                }, transaction);
-//            }
+        return detalles.Select(d => new CompraDetalleDTO
+        {
+            Id = d.Id,
+            EmpresaId = d.EmpresaId,
+            CompraId = d.CompraId,
+            ProductoId = d.ProductoId,
+            Cantidad = d.Cantidad,
+            Precio = d.Precio,
+            CreatedAt = d.CreatedAt,
+            UpdatedAt = d.UpdatedAt,
+            Activo = d.Activo
+        });
+    }
 
-//            transaction.Commit();
+    public async Task<bool> AnularAsync(Guid compraId)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//            return compraId;
-//        }
-//        catch
-//        {
-//            transaction.Rollback();
-//            throw;
-//        }
-//    }
-//}
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        return await _comprasRepositorio.AnularCompraAsync(compraId, empresa.EmpresaId);
+    }
+}

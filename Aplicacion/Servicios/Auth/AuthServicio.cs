@@ -131,49 +131,7 @@ namespace inventarioWebAI.Aplicacion.Servicios.Auth
                 UserId = Guid.Parse(userId)
             };
         }
-        //public async Task<AuthRespuestasDto> LoginEmpresaAsync(Guid userId, Guid empresaId)
-        //{
-        //    try
-        //    {
-        //        // 1. Validar relación usuario-empresa
-        //        var relacion = await _usuarioEmpresaRepositorio
-        //            .ObtenerPorUsuarioYEmpresaAsync(userId, empresaId);
-
-        //        if (relacion == null)
-        //            throw new UnauthorizedAccessException("El usuario no pertenece a esta empresa.");
-
-        //        // 2. Desactivar todas las empresas del usuario
-        //        await _usuarioEmpresaRepositorio.DesactivarTodasAsync(userId);
-
-        //        // 3. Activar la empresa seleccionada
-        //        await _usuarioEmpresaRepositorio.ActivarEmpresaAsync(userId, empresaId);
-
-        //        // 4. Generar JWT interno de empresa
-        //        var tokenInterno = _jwtServicio.generarToken(userId, empresaId);
-
-        //        // 5. Retornar respuesta coherente con tu DTO actual
-        //        return new AuthRespuestasDto
-        //        {
-        //            UserId = userId,
-        //            TokenInterno = tokenInterno,
-        //            AccessToken = null,
-        //            RefreshToken = null
-        //        };
-        //    }
-        //    catch (UnauthorizedAccessException ex)
-        //    {
-        //        Console.WriteLine($"[LoginEmpresaAsync] Unauthorized: {ex.Message}");
-        //        throw;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Console.WriteLine($"[LoginEmpresaAsync] ERROR GENERAL: {ex.Message}");
-        //        Console.WriteLine($"[LoginEmpresaAsync] STACK: {ex.StackTrace}");
-
-        //        throw new Exception("Error en LoginEmpresaAsync: " + ex.Message, ex);
-        //    }
-        //}
-        [Obsolete("Reemplazado por SeleccionarEmpresaAsync con Supabase JWT")]
+      
         public async Task<AuthRespuestasDto> LoginEmpresaAsync(Guid empresaId)
         {
             try

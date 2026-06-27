@@ -1,34 +1,105 @@
-//using Microsoft.AspNetCore.Mvc;
-//using Microsoft.AspNetCore.Authorization;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Aplicacion.DTOs.Proveedor;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
-//namespace inventarioWebAI.API.Controllers;
+namespace inventarioWebAI.Api.Controllers;
 
-//[ApiController]
-//[Route("api/proveedores")]
-//[Authorize]
-//public class ProveedorController : ControllerBase
-//{
-//    private readonly IProveedorServicio _servicio;
+[ApiController]
+[Route("api/proveedores")]
+[Authorize]
+public class ProveedorController : ControllerBase
+{
+    private readonly IProveedorServicio _servicio;
 
-//    public ProveedorController(IProveedorServicio servicio)
-//    {
-//        _servicio = servicio;
-//    }
+    public ProveedorController(IProveedorServicio servicio)
+    {
+        _servicio = servicio;
+    }
 
-//    [HttpGet("{empresaId}")]
-//    public async Task<IActionResult> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        var result = await _servicio.ObtenerPorEmpresa(empresaId);
-//        return Ok(result);
-//    }
+    [HttpPost]
+    public async Task<IActionResult> CrearAsync([FromBody] CrearProveedorDTO dto)
+    {
+        try
+        {
+            var id = await _servicio.CrearAsync(dto.Nombre, dto.Contacto);
+            return Created($"/api/proveedores/{id}", new { id });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 
-//    [HttpPost]
-//    public async Task<IActionResult> Crear([FromBody] CrearProveedorDTO dto)
-//    {
-//        if (!ModelState.IsValid) return BadRequest(ModelState);
-//        var id = await _servicio.Crear(dto);
-//        return Ok(new { id });
-//    }
-//}
+    [HttpGet]
+    public async Task<IActionResult> ObtenerPorEmpresaAsync()
+    {
+        try
+        {
+            var data = await _servicio.ObtenerPorEmpresaAsync();
+
+            if (data == null || !data.Any())
+                return NotFound("No hay proveedores.");
+
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> ObtenerPorIdAsync(Guid id)
+    {
+        try
+        {
+            var data = await _servicio.ObtenerPorIdAsync(id);
+
+            if (data == null)
+                return NotFound("Proveedor no encontrado.");
+
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> ActualizarAsync(Guid id, [FromBody] CrearProveedorDTO dto)
+    {
+        try
+        {
+            var ok = await _servicio.ActualizarAsync(id, dto.Nombre, dto.Contacto);
+
+            if (!ok)
+                return NotFound("No se pudo actualizar el proveedor.");
+
+            return Ok(ok);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> EliminarAsync(Guid id)
+    {
+        try
+        {
+            var ok = await _servicio.EliminarAsync(id);
+
+            if (!ok)
+                return NotFound("No se pudo eliminar el proveedor.");
+
+            return Ok("Proveedor eliminado correctamente.");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+}

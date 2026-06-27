@@ -1,34 +1,101 @@
-//using Microsoft.AspNetCore.Mvc;
-//using Microsoft.AspNetCore.Authorization;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Aplicacion.DTOs.Cliente;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
-//namespace inventarioWebAI.API.Controllers;
+namespace inventarioWebAI.Api.Controllers;
 
-//[ApiController]
-//[Route("api/clientes")]
-//[Authorize]
-//public class ClienteController : ControllerBase
-//{
-//    private readonly IClienteServicio _servicio;
+[ApiController]
+[Route("api/clientes")]
+[Authorize]
+public class ClienteController : ControllerBase
+{
+    private readonly IClienteServicio _servicio;
 
-//    public ClienteController(IClienteServicio servicio)
-//    {
-//        _servicio = servicio;
-//    }
+    public ClienteController(IClienteServicio servicio)
+    {
+        _servicio = servicio;
+    }
 
-//    [HttpGet("{empresaId}")]
-//    public async Task<IActionResult> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        var result = await _servicio.ObtenerPorEmpresa(empresaId);
-//        return Ok(result);
-//    }
+    [HttpPost]
+    public async Task<IActionResult> Crear([FromBody] ClienteDTO dto)
+    {
+        try
+        {
+            var id = await _servicio.CrearAsync(dto.Nombre, dto.Contacto);
+            return Created($"/api/clientes/{id}", new { id });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 
-//    [HttpPost]
-//    public async Task<IActionResult> Crear([FromBody] CrearClienteDTO dto)
-//    {
-//        if (!ModelState.IsValid) return BadRequest(ModelState);
-//        var id = await _servicio.Crear(dto);
-//        return Ok(new { id });
-//    }
-//}
+    [HttpGet]
+    public async Task<IActionResult> ObtenerPorEmpresa()
+    {
+        try
+        {
+            var data = await _servicio.ObtenerPorEmpresaAsync();
+
+            if (!data.Any())
+                return NotFound("No hay clientes");
+
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> ObtenerPorId(Guid id)
+    {
+        try
+        {
+            var data = await _servicio.ObtenerPorIdAsync(id);
+
+            if (data == null)
+                return NotFound("Cliente no encontrado");
+
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Actualizar(Guid id, [FromBody] ClienteDTO dto)
+    {
+        try
+        {
+            var ok = await _servicio.ActualizarAsync(id, dto.Nombre, dto.Contacto);
+            return Ok(ok);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Eliminar(Guid id)
+    {
+        try
+        {
+            var ok = await _servicio.EliminarAsync(id);
+
+            if (!ok)
+                return NotFound("Cliente no encontrado");
+
+            return Ok("Cliente eliminado correctamente");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+}

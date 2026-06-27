@@ -1,11 +1,7 @@
-﻿// Ubicación: /src/Aplicacion/DTOs/AlmacenDTO.cs
-
+﻿
 namespace inventarioWebAI.Aplicacion.DTOs.Almacen;
 
-// NUEVO: DTO de salida para almacenes
-// POR QUÉ:
-// - Necesario para respuestas del AlmacenServicio
-// - Mantiene consistencia con patrón de DTOs existentes
+
 
 public class AlmacenDTO
 {

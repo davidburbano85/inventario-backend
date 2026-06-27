@@ -1,113 +1,185 @@
-﻿//// Ubicación: /src/Aplicacion/Servicios/ClienteServicio.cs
+﻿using inventarioWebAI.Aplicacion.DTOs.Cliente;
+using inventarioWebAI.Aplicacion.Interfaces.Context;
+using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
+using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Dominio.Entidades;
 
-//using Dapper;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces;
-//using inventarioWebAI.Infraestructura.conexion;
+namespace inventarioWebAI.Aplicacion.Servicios;
 
-//namespace inventarioWebAI.Aplicacion.Servicios;
+public class ClienteServicio : IClienteServicio
+{
+    private readonly IClienteRepositorio _clienteRepositorio;
+    private readonly IUsuarioContext _usuarioContext;
+    private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
+    private readonly IEmpresaRepositorio _empresaRepositorio;
+    private readonly IPermisoServicio _permisoServicio;
 
-//// NUEVO: implementación de servicio de clientes
-//// POR QUÉ:
-//// - Mantener consistencia con patrón existente
-//// - Multi-tenant basado en empresa_id
-//public class ClienteServicio : IClienteServicio
-//{
-//    private readonly DbConnectionFactory _db;
+    public ClienteServicio(
+        IClienteRepositorio clienteRepositorio,
+        IUsuarioContext usuarioContext,
+        IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+        IEmpresaRepositorio empresaRepositorio,
+        IPermisoServicio permisoServicio)
+    {
+        _clienteRepositorio = clienteRepositorio;
+        _usuarioContext = usuarioContext;
+        _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
+        _empresaRepositorio = empresaRepositorio;
+        _permisoServicio = permisoServicio;
+    }
 
-//    public ClienteServicio(DbConnectionFactory db)
-//    {
-//        _db = db;
-//    }
+    public async Task<Guid> CrearAsync(string nombre, string? contacto)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new InvalidOperationException("El nombre es obligatorio.");
 
-//    public async Task<IEnumerable<ClienteDTO>> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        using var connection = _db.CrearConexion();
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        var sql = @"
-//            SELECT
-//                id,
-//                nombre,
-//                contacto
-//            FROM clientes
-//            WHERE empresa_id = @EmpresaId
-//            ORDER BY nombre;
-//        ";
+        if (usuarioId == Guid.Empty)
+            throw new InvalidOperationException("Usuario inválido.");
 
-//        return await connection.QueryAsync<ClienteDTO>(sql, new
-//        {
-//            EmpresaId = empresaId
-//        });
-//    }
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//    public async Task<Guid> Crear(CrearClienteDTO dto)
-//    {
-//        using var connection = _db.CrearConexion();
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//        // EXISTENTE: validaciones básicas
-//        if (dto.EmpresaId == Guid.Empty)
-//            throw new InvalidOperationException("EmpresaId es requerido.");
+        var empresaId = usuarioEmpresa.EmpresaId;
 
-//        if (string.IsNullOrWhiteSpace(dto.Nombre))
-//            throw new InvalidOperationException("El nombre del cliente es obligatorio.");
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
 
-//        // NUEVO: validación multi-tenant (fallback)
-//        var sqlValidarEmpresa = @"
-//            SELECT 1
-//            FROM empresas
-//            WHERE id = @EmpresaId;
-//        ";
+        var cliente = new Cliente
+        {
+            EmpresaId = empresaId,
+            Nombre = nombre.Trim(),
+            Contacto = contacto
+        };
 
-//        var empresaExiste = await connection.ExecuteScalarAsync<int?>(sqlValidarEmpresa, new
-//        {
-//            dto.EmpresaId
-//        });
+        return await _clienteRepositorio.CrearAsync(cliente);
+    }
 
-//        if (empresaExiste is null)
-//            throw new InvalidOperationException("La empresa no existe."); // NUEVO
+    public async Task<IEnumerable<ClienteDTO>> ObtenerPorEmpresaAsync()
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        // NUEVO: normalización
-//        var nombreNormalizado = dto.Nombre.Trim();
-//        var contactoNormalizado = dto.Contacto?.Trim();
+        if (usuarioId == Guid.Empty)
+            throw new InvalidOperationException("Usuario inválido.");
 
-//        // NUEVO: validación de nombre único por empresa
-//        var sqlValidarNombre = @"
-//            SELECT COUNT(1)
-//            FROM clientes
-//            WHERE empresa_id = @EmpresaId
-//              AND nombre = @Nombre;
-//        ";
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//        var existe = await connection.ExecuteScalarAsync<int>(sqlValidarNombre, new
-//        {
-//            dto.EmpresaId,
-//            Nombre = nombreNormalizado
-//        });
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//        if (existe > 0)
-//            throw new InvalidOperationException("Ya existe un cliente con ese nombre en la empresa."); // NUEVO
+        var empresaId = usuarioEmpresa.EmpresaId;
 
-//        var sql = @"
-//            INSERT INTO clientes (
-//                empresa_id,
-//                nombre,
-//                contacto
-//            )
-//            VALUES (
-//                @EmpresaId,
-//                @Nombre,
-//                @Contacto
-//            )
-//            RETURNING id;
-//        ";
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
 
-//        var id = await connection.ExecuteScalarAsync<Guid>(sql, new
-//        {
-//            dto.EmpresaId,
-//            Nombre = nombreNormalizado,
-//            Contacto = contactoNormalizado
-//        });
+        var clientes = await _clienteRepositorio.ObtenerPorEmpresaAsync(empresaId);
 
-//        return id;
-//    }
-//}
+        if (clientes == null)
+            return Enumerable.Empty<ClienteDTO>();
+
+        return clientes.Select(c => new ClienteDTO
+        {
+            Id = c!.Id,
+            EmpresaId = c.EmpresaId,
+            Nombre = c.Nombre,
+            Contacto = c.Contacto,
+            CreatedAt = c.CreatedAt,
+            UpdatedAt = c.UpdatedAt,
+            Activo = c.Activo
+        });
+    }
+
+    public async Task<ClienteDTO?> ObtenerPorIdAsync(Guid clienteId)
+    {
+        if (clienteId == Guid.Empty)
+            throw new InvalidOperationException("Cliente inválido.");
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var empresaId = usuarioEmpresa.EmpresaId;
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
+
+        var cliente = await _clienteRepositorio.ObtenerPorIdAsync(clienteId, empresaId);
+
+        if (cliente == null)
+            return null;
+
+        return new ClienteDTO
+        {
+            Id = cliente.Id,
+            EmpresaId = cliente.EmpresaId,
+            Nombre = cliente.Nombre,
+            Contacto = cliente.Contacto,
+            CreatedAt = cliente.CreatedAt,
+            UpdatedAt = cliente.UpdatedAt,
+            Activo = cliente.Activo
+        };
+    }
+
+    public async Task<bool> ActualizarAsync(Guid clienteId, string nombre, string? contacto)
+    {
+        if (clienteId == Guid.Empty)
+            throw new InvalidOperationException("Cliente inválido.");
+
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new InvalidOperationException("El nombre es obligatorio.");
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var empresaId = usuarioEmpresa.EmpresaId;
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
+
+        var clienteExistente = await _clienteRepositorio.ObtenerPorIdAsync(clienteId, empresaId);
+
+        if (clienteExistente == null)
+            throw new InvalidOperationException("El cliente no existe.");
+
+        var cliente = new Cliente
+        {
+            Id = clienteId,
+            EmpresaId = empresaId,
+            Nombre = nombre.Trim(),
+            Contacto = contacto
+        };
+
+        return await _clienteRepositorio.ActualizarAsync(cliente);
+    }
+
+    public async Task<bool> EliminarAsync(Guid clienteId)
+    {
+        if (clienteId == Guid.Empty)
+            throw new InvalidOperationException("Cliente inválido.");
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var empresaId = usuarioEmpresa.EmpresaId;
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
+
+        var cliente = await _clienteRepositorio.ObtenerPorIdAsync(clienteId, empresaId);
+
+        if (cliente == null)
+            return false;
+
+        return await _clienteRepositorio.EliminarAsync(clienteId, empresaId);
+    }
+}

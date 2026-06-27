@@ -1,6 +1,4 @@
-﻿// Ubicación: /src/Dominio/Entidades/Compra.cs
-
-namespace inventarioWebAI.Dominio.Entidades;
+﻿namespace inventarioWebAI.Dominio.Entidades;
 
 public class Compra
 {
@@ -14,5 +12,6 @@ public class Compra
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    public List<CompraDetalle> Detalles { get; set; } = new();
+
+    public bool Activo { get; set; } = true;
 }

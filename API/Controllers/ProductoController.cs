@@ -1,68 +1,135 @@
-﻿//// Ubicación: /src/API/Controllers/ProductoController.cs
+﻿using inventarioWebAI.Aplicacion.DTOs.Producto;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
-//using Microsoft.AspNetCore.Mvc; // Base para construir endpoints HTTP
-//using Microsoft.AspNetCore.Authorization;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces.Iservicios; // DTOs usados en requests/responses
+[ApiController]
+[Route("api/productos")]
+[Authorize]
+public class ProductoController : ControllerBase
+{
+    private readonly IProductoServicio _servicio;
 
-//namespace inventarioWebAI.API.Controllers; // Namespace del controlador
+    public ProductoController(IProductoServicio servicio)
+    {
+        _servicio = servicio;
+    }
 
-//// Este controlador expone endpoints HTTP para productos.
-//// Responsabilidad:
-//// - Recibir requests HTTP
-//// - Validar entrada básica
-//// - Delegar lógica al servicio
-//// - Retornar respuestas HTTP
-//// NO contiene lógica de negocio → eso vive en el servicio
-//[ApiController] // Indica que es un controlador API
-//[Route("api/productos")] // Ruta base
-//[Authorize]
-//public class ProductoController : ControllerBase
-//{
-//    private readonly IProductoServicio _servicio; // Dependencia del servicio
+    [HttpPost]
+    public async Task<IActionResult> CrearAsync([FromBody] CrearProductoDTO dto)
+    {
+        try
+        {
+            var id = await _servicio.CrearProductoAsync(
+                dto.Nombre,
+                dto.CodigoSku,
+                dto.PrecioVenta,
+                dto.PrecioCompra,
+                dto.CategoriaId
+            );
 
-//    // Inyección de dependencia
-//    public ProductoController(IProductoServicio servicio)
-//    {
-//        _servicio = servicio; // Guardamos servicio
-//    }
+            return Created($"/api/productos/{id}", new { id });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 
-//    // GET: api/productos/{empresaId}
-//    // Obtiene todos los productos de una empresa
-//    [HttpGet("{empresaId}")]
-//    public async Task<IActionResult> Obtener(Guid empresaId)
-//    {
-//        var resultado = await _servicio.ObtenerPorEmpresa(empresaId); // Llamamos al servicio
+    [HttpGet]
+    public async Task<IActionResult> ObtenerActivosAsync()
+    {
+        try
+        {
+            var data = await _servicio.ObtenerProductosActivosPorEmpresaAsync();
 
-//        return Ok(resultado); // Retornamos 200 con data
-//    }
+            if (data == null || !data.Any())
+                return NotFound("No hay productos.");
 
-//    // GET: api/productos/{empresaId}/{productoId}
-//    // Obtiene un producto específico
-//    [HttpGet("{empresaId}/{productoId}")]
-//    public async Task<IActionResult> ObtenerPorId(Guid empresaId, Guid productoId)
-//    {
-//        var producto = await _servicio.ObtenerPorId(empresaId, productoId); // Consultamos
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 
-//        if (producto == null) // Si no existe
-//            return NotFound(); // 404
+    [HttpGet("categoria/{categoriaId}")]
+    public async Task<IActionResult> ObtenerPorCategoriaAsync(Guid categoriaId)
+    {
+        try
+        {
+            var data = await _servicio.ObtenerProductosPorCategoriaAsync(categoriaId);
 
-//        return Ok(producto); // 200 con data
-//    }
+            if (data == null || !data.Any())
+                return NotFound("No hay productos en esta categoría.");
 
-//    // POST: api/productos
-//    // Crea un nuevo producto
-//    [HttpPost]
-//    public async Task<IActionResult> Crear([FromBody] CrearProductoDTO dto)
-//    {
-//        if (!ModelState.IsValid) // Validación básica del modelo
-//            return BadRequest(ModelState); // 400
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 
-//        if (string.IsNullOrWhiteSpace(dto.Nombre)) // FIX: evita violar CHECK (length(trim(nombre)) > 0) en BD
-//            return BadRequest("El nombre del producto es obligatorio.");
+    [HttpGet("{id}")]
+    public async Task<IActionResult> ObtenerPorIdAsync(Guid id)
+    {
+        try
+        {
+            var data = await _servicio.ObtenerProductoPorIdAsync(id);
 
-//        var id = await _servicio.Crear(dto); // Creamos producto
+            if (data == null)
+                return NotFound("Producto no encontrado.");
 
-//        return Ok(new { id }); // Retornamos ID creado
-//    }
-//}
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> ActualizarAsync(Guid id, [FromBody] CrearProductoDTO dto)
+    {
+        try
+        {
+            var ok = await _servicio.ActualizarProductoAsync(
+                id,
+                dto.Nombre,
+                dto.CodigoSku,
+                dto.PrecioVenta,
+                dto.PrecioCompra,
+                dto.CategoriaId
+            );
+
+            if (!ok)
+                return NotFound("No se pudo actualizar el producto.");
+
+            return Ok(ok);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> EliminarAsync(Guid id)
+    {
+        try
+        {
+            var ok = await _servicio.EliminarProductoAsync(id);
+
+            if (!ok)
+                return NotFound("No se pudo eliminar el producto.");
+
+            return Ok("Producto eliminado correctamente.");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+}

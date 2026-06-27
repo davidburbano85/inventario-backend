@@ -13,6 +13,9 @@ public class ProveedorDTO
     public Guid EmpresaId { get; set; } // NUEVO: multi-tenant
 
     public string Nombre { get; set; } = string.Empty; // NUEVO: nombre del proveedor
+    public string? Contacto { get; set; } // NUEVO: contacto del proveedor
 
     public DateTime CreatedAt { get; set; } // NUEVO: fecha de creación
+    public DateTime UpdatedAt { get; set; } // NUEVO: fecha de última actualización
+    public bool Activo { get; set; } // NUEVO: estado activo/inactivo
 }

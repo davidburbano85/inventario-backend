@@ -1,49 +1,117 @@
-//using Microsoft.AspNetCore.Mvc;
-//using Microsoft.AspNetCore.Authorization;
-//using System.Security.Claims;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+﻿using inventarioWebAI.Aplicacion.DTOs.Comprar;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
-//namespace inventarioWebAI.API.Controllers;
+namespace inventarioWebAI.Api.Controllers;
 
-//[ApiController]
-//[Route("api/compras")]
-//[Authorize]
-//public class ComprasController : ControllerBase
-//{
-//    private readonly IComprasServicio _servicio;
+[ApiController]
+[Route("api/compras")]
+[Authorize]
+public class ComprasController : ControllerBase
+{
+    private readonly IComprasServicio _servicio;
 
-//    public ComprasController(IComprasServicio servicio)
-//    {
-//        _servicio = servicio;
-//    }
+    public ComprasController(IComprasServicio servicio)
+    {
+        _servicio = servicio;
+    }
 
-//    private Guid? GetRequesterId()
-//    {
-//        var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-//        if (Guid.TryParse(sub, out var id)) return id;
-//        return null;
-//    }
+    [HttpPost]
+    public async Task<IActionResult> Crear([FromBody] CrearCompraDTO dto)
+    {
+        try
+        {
+            // 🔥 CREA LA COMPRA USANDO SOLO DATOS DEL DTO
+            // Usuario, empresa y total se resuelven en el backend
+            var id = await _servicio.CrearAsync(
+                dto.ProveedorId,
+                dto.Detalles
+            );
 
-//    [HttpGet("{empresaId}")]
-//    public async Task<IActionResult> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        var result = await _servicio.ObtenerPorEmpresa(empresaId);
-//        return Ok(result);
-//    }
+            return Created($"/api/compras/{id}", new { id });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 
-//    [HttpPost]
-//    public async Task<IActionResult> Crear([FromBody] CrearCompraDTO dto)
-//    {
-//        var requester = GetRequesterId();
-//        if (requester is null) return Unauthorized();
+    [HttpGet]
+    public async Task<IActionResult> ObtenerPorEmpresa()
+    {
+        try
+        {
+            // 🔥 OBTIENE TODAS LAS COMPRAS DE LA EMPRESA ACTIVA DEL USUARIO
+            var data = await _servicio.ObtenerPorEmpresaAsync();
 
-//        if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!data.Any())
+                return NotFound("No hay compras");
 
-//        // El usuario que realiza la compra se toma del token
-//        dto.UsuarioId = requester.Value;
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 
-//        var id = await _servicio.Crear(dto);
-//        return Ok(new { id });
-//    }
-//}
+    [HttpGet("{id}")]
+    public async Task<IActionResult> ObtenerPorId(Guid id)
+    {
+        try
+        {
+            // 🔥 OBTIENE UNA COMPRA VALIDANDO QUE PERTENEZCA A LA EMPRESA DEL USUARIO
+            var data = await _servicio.ObtenerPorIdAsync(id);
+
+            if (data == null)
+                return NotFound("Compra no encontrada");
+
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpGet("{id}/detalle")]
+    public async Task<IActionResult> ObtenerDetalle(Guid id)
+    {
+        try
+        {
+            // 🔥 OBTIENE SOLO LOS DETALLES DE UNA COMPRA
+            // No es un CRUD independiente, solo lectura dentro del contexto de compra
+            var data = await _servicio.ObtenerDetalleAsync(id);
+
+            if (!data.Any())
+                return NotFound("No hay detalles");
+
+            return Ok(data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Anular(Guid id)
+    {
+        try
+        {
+            // 🔥 ANULA (ELIMINACIÓN LÓGICA) DE LA COMPRA
+            // No se borra físicamente por trazabilidad del inventario
+            var ok = await _servicio.AnularAsync(id);
+
+            if (!ok)
+                return NotFound("Compra no encontrada");
+
+            return Ok("Compra anulada correctamente");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+}

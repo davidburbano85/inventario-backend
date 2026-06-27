@@ -1,113 +1,185 @@
-﻿//// Ubicación: /src/Aplicacion/Servicios/ProveedorServicio.cs
+﻿using inventarioWebAI.Aplicacion.DTOs.Proveedor;
+using inventarioWebAI.Aplicacion.Interfaces.Context;
+using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
+using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Dominio.Entidades;
 
-//using Dapper;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces;
-//using inventarioWebAI.Infraestructura.conexion;
+namespace inventarioWebAI.Aplicacion.Servicios;
 
-//namespace inventarioWebAI.Aplicacion.Servicios;
+public class ProveedorServicio : IProveedorServicio
+{
+    private readonly IProveedorRepositorio _proveedorRepositorio;
+    private readonly IUsuarioContext _usuarioContext;
+    private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
+    private readonly IEmpresaRepositorio _empresaRepositorio;
+    private readonly IPermisoServicio _permisoServicio;
 
-//// NUEVO: implementación de servicio de proveedores
-//// POR QUÉ:
-//// - Mantener consistencia con patrón existente
-//// - Multi-tenant basado en empresa_id
-//public class ProveedorServicio : IProveedorServicio
-//{
-//    private readonly DbConnectionFactory _db;
+    public ProveedorServicio(
+        IProveedorRepositorio proveedorRepositorio,
+        IUsuarioContext usuarioContext,
+        IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+        IEmpresaRepositorio empresaRepositorio,
+        IPermisoServicio permisoServicio)
+    {
+        _proveedorRepositorio = proveedorRepositorio;
+        _usuarioContext = usuarioContext;
+        _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
+        _empresaRepositorio = empresaRepositorio;
+        _permisoServicio = permisoServicio;
+    }
 
-//    public ProveedorServicio(DbConnectionFactory db)
-//    {
-//        _db = db;
-//    }
+    public async Task<Guid> CrearAsync(string nombre, string? contacto)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new InvalidOperationException("El nombre es obligatorio.");
 
-//    public async Task<IEnumerable<ProveedorDTO>> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        using var connection = _db.CrearConexion();
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        var sql = @"
-//            SELECT
-//                id,
-//                nombre,
-//                contacto
-//            FROM proveedores
-//            WHERE empresa_id = @EmpresaId
-//            ORDER BY nombre;
-//        ";
+        if (usuarioId == Guid.Empty)
+            throw new InvalidOperationException("Usuario inválido.");
 
-//        return await connection.QueryAsync<ProveedorDTO>(sql, new
-//        {
-//            EmpresaId = empresaId
-//        });
-//    }
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//    public async Task<Guid> Crear(CrearProveedorDTO dto)
-//    {
-//        using var connection = _db.CrearConexion();
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//        // EXISTENTE: validaciones básicas
-//        if (dto.EmpresaId == Guid.Empty)
-//            throw new InvalidOperationException("EmpresaId es requerido.");
+        var empresaId = usuarioEmpresa.EmpresaId;
 
-//        if (string.IsNullOrWhiteSpace(dto.Nombre))
-//            throw new InvalidOperationException("El nombre del proveedor es obligatorio.");
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
 
-//        // NUEVO: validación multi-tenant (fallback)
-//        var sqlValidarEmpresa = @"
-//            SELECT 1
-//            FROM empresas
-//            WHERE id = @EmpresaId;
-//        ";
+        var proveedor = new Proveedor
+        {
+            EmpresaId = empresaId,
+            Nombre = nombre.Trim(),
+            Contacto = contacto
+        };
 
-//        var empresaExiste = await connection.ExecuteScalarAsync<int?>(sqlValidarEmpresa, new
-//        {
-//            dto.EmpresaId
-//        });
+        return await _proveedorRepositorio.CrearAsync(proveedor);
+    }
 
-//        if (empresaExiste is null)
-//            throw new InvalidOperationException("La empresa no existe."); // NUEVO
+    public async Task<IEnumerable<ProveedorDTO>> ObtenerPorEmpresaAsync()
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        // NUEVO: normalización
-//        var nombreNormalizado = dto.Nombre.Trim();
-//        var contactoNormalizado = dto.Contacto?.Trim();
+        if (usuarioId == Guid.Empty)
+            throw new InvalidOperationException("Usuario inválido.");
 
-//        // NUEVO: validación de nombre único por empresa
-//        var sqlValidarNombre = @"
-//            SELECT COUNT(1)
-//            FROM proveedores
-//            WHERE empresa_id = @EmpresaId
-//              AND nombre = @Nombre;
-//        ";
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//        var existe = await connection.ExecuteScalarAsync<int>(sqlValidarNombre, new
-//        {
-//            dto.EmpresaId,
-//            Nombre = nombreNormalizado
-//        });
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//        if (existe > 0)
-//            throw new InvalidOperationException("Ya existe un proveedor con ese nombre en la empresa."); // NUEVO
+        var empresaId = usuarioEmpresa.EmpresaId;
 
-//        var sql = @"
-//            INSERT INTO proveedores (
-//                empresa_id,
-//                nombre,
-//                contacto
-//            )
-//            VALUES (
-//                @EmpresaId,
-//                @Nombre,
-//                @Contacto
-//            )
-//            RETURNING id;
-//        ";
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
 
-//        var id = await connection.ExecuteScalarAsync<Guid>(sql, new
-//        {
-//            dto.EmpresaId,
-//            Nombre = nombreNormalizado,
-//            Contacto = contactoNormalizado
-//        });
+        var proveedores = await _proveedorRepositorio.ObtenerPorEmpresaAsync(empresaId);
 
-//        return id;
-//    }
-//}
+        if (proveedores == null)
+            return Enumerable.Empty<ProveedorDTO>();
+
+        return proveedores.Select(p => new ProveedorDTO
+        {
+            Id = p!.Id,
+            EmpresaId = p.EmpresaId,
+            Nombre = p.Nombre,
+            Contacto = p.Contacto,
+            CreatedAt = p.CreatedAt,
+            UpdatedAt = p.UpdatedAt,
+            Activo = p.Activo
+        });
+    }
+
+    public async Task<ProveedorDTO?> ObtenerPorIdAsync(Guid proveedorId)
+    {
+        if (proveedorId == Guid.Empty)
+            throw new InvalidOperationException("Proveedor inválido.");
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var empresaId = usuarioEmpresa.EmpresaId;
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
+
+        var proveedor = await _proveedorRepositorio.ObtenerPorIdAsync(proveedorId, empresaId);
+
+        if (proveedor == null)
+            return null;
+
+        return new ProveedorDTO
+        {
+            Id = proveedor.Id,
+            EmpresaId = proveedor.EmpresaId,
+            Nombre = proveedor.Nombre,
+            Contacto = proveedor.Contacto,
+            CreatedAt = proveedor.CreatedAt,
+            UpdatedAt = proveedor.UpdatedAt,
+            Activo = proveedor.Activo
+        };
+    }
+
+    public async Task<bool> ActualizarAsync(Guid proveedorId, string nombre, string? contacto)
+    {
+        if (proveedorId == Guid.Empty)
+            throw new InvalidOperationException("Proveedor inválido.");
+
+        if (string.IsNullOrWhiteSpace(nombre))
+            throw new InvalidOperationException("El nombre es obligatorio.");
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var empresaId = usuarioEmpresa.EmpresaId;
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
+
+        var proveedorExistente = await _proveedorRepositorio.ObtenerPorIdAsync(proveedorId, empresaId);
+
+        if (proveedorExistente == null)
+            throw new InvalidOperationException("El proveedor no existe.");
+
+        var proveedor = new Proveedor
+        {
+            Id = proveedorId,
+            EmpresaId = empresaId,
+            Nombre = nombre.Trim(),
+            Contacto = contacto
+        };
+
+        return await _proveedorRepositorio.ActualizarAsync(proveedor);
+    }
+
+    public async Task<bool> EliminarAsync(Guid proveedorId)
+    {
+        if (proveedorId == Guid.Empty)
+            throw new InvalidOperationException("Proveedor inválido.");
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var empresaId = usuarioEmpresa.EmpresaId;
+
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
+
+        var proveedor = await _proveedorRepositorio.ObtenerPorIdAsync(proveedorId, empresaId);
+
+        if (proveedor == null)
+            return false;
+
+        return await _proveedorRepositorio.EliminarAsync(proveedorId, empresaId);
+    }
+}

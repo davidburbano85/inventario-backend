@@ -71,6 +71,22 @@ builder.Services.AddScoped<IJwtServicio, JwtServicio>();
 builder.Services.AddScoped<IAlmacenRepositorio, AlmacenRepositorioDapper>();
 builder.Services.AddScoped<IAlmacenServicio, AlmacenServicio>();
 
+
+// ======================= Categoria ======================================
+builder.Services.AddScoped<ICategoriaRepositorio, CategoriaRepositorioDapper>();
+builder.Services.AddScoped<ICategoriaServicio, CategoriaServicio>();
+
+// ======================= PRoducto =========================================
+builder.Services.AddScoped<IProductoRepositorio, ProductoRepositorioDapper>();
+builder.Services.AddScoped<IProductoServicio, ProductoServicio>();
+//======================= Proovedor ==========================================  
+builder.Services.AddScoped<IProveedorRepositorio, ProveedorRepositorioDapper>();
+builder.Services.AddScoped<IProveedorServicio, ProveedorServicio>();
+//======================= Cliente ==========================================
+builder.Services.AddScoped<IClienteRepositorio, ClienteRepositorioDapper>();
+builder.Services.AddScoped<IClienteServicio, ClienteServicio>();
+
+
 builder.Logging.ClearProviders();// Limpia los proveedores de logging predeterminados
 builder.Logging.AddConsole();// Agrega el proveedor de logging para la consola
 builder.Logging.SetMinimumLevel(LogLevel.Debug);// Establece el nivel mínimo de logging en Debug para obtener información detallada durante el desarrollo

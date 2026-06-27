@@ -14,6 +14,8 @@ public class CompraDetalle
     public decimal Cantidad { get; set; }
 
     public decimal Precio { get; set; }
+    public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
+    public bool Activo { get; set; }
 }

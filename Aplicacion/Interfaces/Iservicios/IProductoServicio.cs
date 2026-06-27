@@ -1,14 +1,18 @@
-﻿// Ubicación: /src/Aplicacion/Interfaces/IProductoServicio.cs
+﻿using inventarioWebAI.Aplicacion.DTOs.Producto;
 
 namespace inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 
-using inventarioWebAI.Aplicacion.DTOs.Producto;
-
 public interface IProductoServicio
 {
-    Task<IEnumerable<ProductoDTO>> ObtenerPorEmpresa(Guid empresaId);
+    Task<Guid> CrearProductoAsync(string nombre, string? codigoSku, decimal precioVenta, decimal? precioCompra, Guid categoriaId);
 
-    Task<ProductoDTO?> ObtenerPorId(Guid empresaId, Guid productoId);
+    Task<IEnumerable<ProductoDTO>> ObtenerProductosActivosPorEmpresaAsync();
 
-    Task<Guid> Crear(CrearProductoDTO dto);
+    Task<IEnumerable<ProductoDTO>> ObtenerProductosPorCategoriaAsync(Guid categoriaId);
+
+    Task<ProductoDTO?> ObtenerProductoPorIdAsync(Guid productoId);
+
+    Task<bool> ActualizarProductoAsync(Guid productoId, string nombre, string? codigoSku, decimal precioVenta, decimal? precioCompra, Guid categoriaId);
+
+    Task<bool> EliminarProductoAsync(Guid productoId);
 }

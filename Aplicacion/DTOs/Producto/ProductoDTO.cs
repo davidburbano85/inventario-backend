@@ -1,11 +1,10 @@
-﻿// Ubicación: /src/Aplicacion/DTOs/ProductoDTO.cs
-
-namespace inventarioWebAI.Aplicacion.DTOs.Producto;
-
-public class ProductoDTO
+﻿public class ProductoDTO
 {
     public Guid Id { get; set; }
-    public Guid? CategoriaId { get; set; }
+
+    public Guid EmpresaId { get; set; }
+
+    public Guid? CategoriaId { get; set; } // nullable alineado a la entidad
 
     public string Nombre { get; set; } = string.Empty;
 
@@ -16,4 +15,8 @@ public class ProductoDTO
     public decimal? PrecioCompra { get; set; }
 
     public bool Activo { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime? UpdatedAt { get; set; }
 }
