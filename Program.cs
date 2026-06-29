@@ -13,6 +13,9 @@ using inventarioWebAI.Infraestructura.Auth;
 using inventarioWebAI.Infraestructura.Conexion;
 using inventarioWebAI.Infraestructura.Context;
 using inventarioWebAI.Infraestructura.RepositoriosDapper;
+
+
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
@@ -31,6 +34,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders(); // Limpia los proveedores de logging predeterminados
 builder.Logging.AddConsole(); // Agrega el proveedor de logging para la consola
 builder.Logging.AddDebug(); // Agrega el proveedor de logging para el depurador
+
+// guardar cache enmemoria
+builder.Services.AddMemoryCache();
 // ===========================
 // OBTENER CONFIGURACIÓN SUPABASE
 // ===========================
@@ -85,6 +91,30 @@ builder.Services.AddScoped<IProveedorServicio, ProveedorServicio>();
 //======================= Cliente ==========================================
 builder.Services.AddScoped<IClienteRepositorio, ClienteRepositorioDapper>();
 builder.Services.AddScoped<IClienteServicio, ClienteServicio>();
+
+//======================= Compra ==========================================
+builder.Services.AddScoped<IComprasRepositorio, ComprasRepositorioDapper>();
+builder.Services.AddScoped<IComprasServicio, ComprasServicio>();
+builder.Services.AddScoped<ICompraDetalleRepositorio, CompraDetalleRepositorioDapper>();
+
+//======================= Venta ==========================================
+builder.Services.AddScoped<IVentasRepositorio, VentasRepositorioDapper>();
+builder.Services.AddScoped<IVentasServicio, VentasServicio>();
+builder.Services.AddScoped<IVentasDetalleRepositorio, VentasDetalleRepositorioDapper>();
+
+//======================= Stock ==========================================
+builder.Services.AddScoped<IStockRepositorio, StockRepositorioDapper>();
+
+
+// ======================= Movimientos Inventario ==========================
+builder.Services.AddScoped<IMovimientosInventarioRepositorio, MovimientosInventarioRepositorioDapper>();
+builder.Services.AddScoped<IMovimientosInventarioServicio, MovimientosInventarioServicio>();
+
+//======================== IUnitOfWork ==========================================
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+// ======================== contexto ==========================================
+builder.Services.AddScoped<IUsuarioContext, UsuarioContextService>();
+
 
 
 builder.Logging.ClearProviders();// Limpia los proveedores de logging predeterminados

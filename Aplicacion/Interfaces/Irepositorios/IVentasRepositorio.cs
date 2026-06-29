@@ -1,29 +1,29 @@
 ﻿using inventarioWebAI.Dominio.Entidades;
 using System.Data;
 
-public interface IComprasRepositorio
+namespace inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
+
+public interface IVentasRepositorio
 {
-    Task<Guid> CrearCompraAsync(
+    Task<Guid> CrearVentaAsync(
         IDbConnection connection,
         IDbTransaction transaction,
-        Compra compra);
+        Venta venta);
 
-    Task<IEnumerable<Compra>> ObtenerPorEmpresaAsync(
+    Task<IEnumerable<Venta>> ObtenerPorEmpresaAsync(
         IDbConnection connection,
         IDbTransaction transaction,
         Guid empresaId);
 
-    Task<Compra?> ObtenerPorIdAsync(
+    Task<Venta?> ObtenerPorIdAsync(
         IDbConnection connection,
         IDbTransaction transaction,
         Guid id,
         Guid empresaId);
 
-    Task<bool> AnularCompraAsync(
+    Task<bool> AnularVentaAsync(
         IDbConnection connection,
         IDbTransaction transaction,
         Guid id,
         Guid empresaId);
-   
-
 }

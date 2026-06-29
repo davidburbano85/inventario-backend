@@ -1,6 +1,4 @@
-﻿// Ubicación: /src/Dominio/Entidades/VentaDetalle.cs
-
-namespace inventarioWebAI.Dominio.Entidades;
+﻿namespace inventarioWebAI.Dominio.Entidades;
 
 public class VentaDetalle
 {
@@ -15,5 +13,10 @@ public class VentaDetalle
     public decimal Cantidad { get; set; }
 
     public decimal Precio { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
     public DateTime UpdatedAt { get; set; }
+
+    public bool Activo { get; set; }
 }

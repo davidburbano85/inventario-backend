@@ -4,6 +4,8 @@ using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using inventarioWebAI.Dominio.Entidades;
+using Microsoft.Extensions.Caching.Memory;
+
 
 namespace inventarioWebAI.Aplicacion.Servicios;
 
@@ -14,19 +16,25 @@ public class AlmacenServicio : IAlmacenServicio
     private readonly IUsuarioContext _usuarioContext;
     private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
     private readonly IEmpresaRepositorio _empresaRepositorio;
-
+    private readonly Dictionary<Guid, Guid> _almacenCache = new();
+    private readonly ILogger<AlmacenServicio> _logger;
+    private readonly IMemoryCache _cache;
     public AlmacenServicio(
         IAlmacenRepositorio almacenRepositorio,
         IPermisoServicio permisoServicio,
         IUsuarioContext usuarioContext,
         IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
-        IEmpresaRepositorio empresaRepositorio)
+        IEmpresaRepositorio empresaRepositorio,
+        ILogger<AlmacenServicio> logger,
+        IMemoryCache cache)
     {
         _almacenRepositorio = almacenRepositorio;
         _permisoServicio = permisoServicio;
         _usuarioContext = usuarioContext;
         _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
         _empresaRepositorio = empresaRepositorio;
+        _logger = logger;
+        _cache = cache;
     }
 
     // ==============================
@@ -112,6 +120,7 @@ public class AlmacenServicio : IAlmacenServicio
                 Nombre = almacen.Nombre,
                 Ubicacion = almacen.Ubicacion,
                 CreatedAt = almacen.CreatedAt,
+                UpdatedAt=almacen.UpdatedAt,
                 Activo = almacen.Activo
             });
         }
@@ -264,4 +273,50 @@ public class AlmacenServicio : IAlmacenServicio
         // 6. Eliminar
         return await _almacenRepositorio.EliminarAlmacenAsync(almacenId, empresaId);
     }
+    public async Task SeleccionarAlmacenAsync(Guid almacenId)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (empresa == null)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var almacen = await _almacenRepositorio.ObtenerAlmacenPorIdAsync(
+            almacenId,
+            empresa.EmpresaId
+        );
+
+        if (almacen == null)
+            throw new InvalidOperationException("El almacén no pertenece a la empresa.");
+
+        var key = $"almacen:{usuarioId}";
+
+        _cache.Set(key, almacenId, TimeSpan.FromHours(8));
+
+        _logger.LogInformation("Almacén guardado en cache: {UsuarioId} -> {AlmacenId}",
+            usuarioId, almacenId);
+    }
+
+
+    public Task<Guid> ObtenerAlmacenActivoAsync()
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+        var key = $"almacen:{usuarioId}";
+
+
+        _logger.LogInformation("Buscando almacén en cache para usuario: {UsuarioId}", usuarioId);
+
+        if (!_cache.TryGetValue(key, out Guid almacenId))
+        {
+            _logger.LogWarning("No hay almacén en cache para usuario: {UsuarioId}", usuarioId);
+            throw new InvalidOperationException("No hay almacén seleccionado.");
+        }
+
+        _logger.LogInformation("Almacén encontrado en cache: {AlmacenId}", almacenId);
+
+        return Task.FromResult(almacenId);
+    }
+
+
 }

@@ -5,6 +5,7 @@ using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using inventarioWebAI.Dominio.Entidades;
+using inventarioWebAI.Dominio.Enums;
 
 namespace inventarioWebAI.Aplicacion.Servicios;
 
@@ -15,7 +16,10 @@ public class ComprasServicio : IComprasServicio
     private readonly IUsuarioContext _usuarioContext;
     private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
     private readonly IPermisoServicio _permisoServicio;
-    private readonly IUnitOfWork _unitOfWork ;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMovimientosInventarioServicio _movimientosServicio;
+    private readonly IAlmacenRepositorio _almacenRepositorio;
+    private readonly IAlmacenServicio _almacenServicio;
 
     public ComprasServicio(
         IComprasRepositorio comprasRepositorio,
@@ -23,7 +27,11 @@ public class ComprasServicio : IComprasServicio
         IUsuarioContext usuarioContext,
         IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
         IPermisoServicio permisoServicio,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IMovimientosInventarioServicio movimientosServicio,
+        IAlmacenRepositorio almacenRepositorio,
+        IAlmacenServicio almacenServicio
+        )
     {
         _comprasRepositorio = comprasRepositorio;
         _detalleRepositorio = detalleRepositorio;
@@ -31,6 +39,9 @@ public class ComprasServicio : IComprasServicio
         _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
         _permisoServicio = permisoServicio;
         _unitOfWork = unitOfWork;
+        _movimientosServicio = movimientosServicio;
+        _almacenRepositorio = almacenRepositorio;
+        _almacenServicio = almacenServicio;
     }
 
     public async Task<Guid> CrearAsync(Guid proveedorId, List<CrearCompraDetalleDTO> detalles)
@@ -50,6 +61,8 @@ public class ComprasServicio : IComprasServicio
 
         await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresa.EmpresaId);
 
+        var almacenId = await _almacenServicio.ObtenerAlmacenActivoAsync();
+
         var total = detalles.Sum(d => d.Cantidad * d.Precio);
 
         var compra = new Compra
@@ -66,18 +79,16 @@ public class ComprasServicio : IComprasServicio
             Precio = d.Precio
         });
 
-        using var uow = _unitOfWork;
+        var uow = _unitOfWork;
 
         try
         {
-            // 🔥 1. CREAR COMPRA dentro de la transacción
             var compraId = await _comprasRepositorio.CrearCompraAsync(
                 uow.Connection,
                 uow.Transaction,
                 compra
             );
 
-            // 🔥 2. CREAR DETALLES dentro de la misma transacción
             await _detalleRepositorio.InsertarAsync(
                 uow.Connection,
                 uow.Transaction,
@@ -86,14 +97,22 @@ public class ComprasServicio : IComprasServicio
                 detalleEntities
             );
 
-            // 🔥 3. CONFIRMAR TODO
-            uow.Commit();
+            foreach (var d in detalleEntities)
+            {
+                await _movimientosServicio.RegistrarAsync(
+                    d.ProductoId,
+                    almacenId,
+                    d.Cantidad,
+                    TipoMovimiento.Entrada,
+                    $"COMPRA: {compraId}"
+                );
+            }
 
+            uow.Commit();
             return compraId;
         }
         catch
         {
-            // 🔥 4. ROLLBACK TOTAL
             uow.Rollback();
             throw;
         }
@@ -109,11 +128,17 @@ public class ComprasServicio : IComprasServicio
         if (empresa == null || !empresa.Activo)
             throw new InvalidOperationException("No hay empresa activa.");
 
-        var compras = await _comprasRepositorio.ObtenerPorEmpresaAsync(empresa.EmpresaId);
+        var uow = _unitOfWork;
+
+        var compras = await _comprasRepositorio.ObtenerPorEmpresaAsync(
+            uow.Connection,
+            uow.Transaction,
+            empresa.EmpresaId
+        );
 
         return compras.Select(c => new CompraDTO
         {
-            Id = c!.Id,
+            Id = c.Id,
             EmpresaId = c.EmpresaId,
             ProveedorId = c.ProveedorId,
             Total = c.Total,
@@ -122,7 +147,6 @@ public class ComprasServicio : IComprasServicio
             Activo = c.Activo
         });
     }
-
     public async Task<CompraDTO?> ObtenerPorIdAsync(Guid compraId)
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
@@ -132,7 +156,14 @@ public class ComprasServicio : IComprasServicio
         if (empresa == null || !empresa.Activo)
             throw new InvalidOperationException("No hay empresa activa.");
 
-        var compra = await _comprasRepositorio.ObtenerPorIdAsync(compraId, empresa.EmpresaId);
+        var uow = _unitOfWork;
+
+        var compra = await _comprasRepositorio.ObtenerPorIdAsync(
+            uow.Connection,
+            uow.Transaction,
+            compraId,
+            empresa.EmpresaId
+        );
 
         if (compra == null)
             return null;
@@ -148,7 +179,6 @@ public class ComprasServicio : IComprasServicio
             Activo = compra.Activo
         };
     }
-
     public async Task<IEnumerable<CompraDetalleDTO>> ObtenerDetalleAsync(Guid compraId)
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
@@ -158,7 +188,14 @@ public class ComprasServicio : IComprasServicio
         if (empresa == null || !empresa.Activo)
             throw new InvalidOperationException("No hay empresa activa.");
 
-        var detalles = await _detalleRepositorio.ObtenerPorCompraAsync(compraId, empresa.EmpresaId);
+        var uow = _unitOfWork;
+
+        var detalles = await _detalleRepositorio.ObtenerPorCompraAsync(
+            uow.Connection,
+            uow.Transaction,
+            compraId,
+            empresa.EmpresaId
+        );
 
         return detalles.Select(d => new CompraDetalleDTO
         {
@@ -173,7 +210,6 @@ public class ComprasServicio : IComprasServicio
             Activo = d.Activo
         });
     }
-
     public async Task<bool> AnularAsync(Guid compraId)
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
@@ -183,6 +219,25 @@ public class ComprasServicio : IComprasServicio
         if (empresa == null || !empresa.Activo)
             throw new InvalidOperationException("No hay empresa activa.");
 
-        return await _comprasRepositorio.AnularCompraAsync(compraId, empresa.EmpresaId);
+        await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresa.EmpresaId);
+
+        var uow = _unitOfWork;
+
+        var result = await _comprasRepositorio.AnularCompraAsync(
+            uow.Connection,
+            uow.Transaction,
+            compraId,
+            empresa.EmpresaId
+        );
+
+        if (result)
+            uow.Commit();
+        else
+            uow.Rollback();
+
+        return result;
     }
+
+
+
 }

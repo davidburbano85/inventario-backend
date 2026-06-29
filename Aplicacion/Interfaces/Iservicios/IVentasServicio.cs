@@ -1,12 +1,14 @@
-﻿// Ubicación: /src/Aplicacion/Interfaces/IVentasServicio.cs
+﻿using inventarioWebAI.Dominio.Entidades;
 
 namespace inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 
-using inventarioWebAI.Aplicacion.DTOs.Venta;
-
 public interface IVentasServicio
 {
-    Task<IEnumerable<VentaDTO>> ObtenerPorEmpresa(Guid empresaId);
+    Task<Guid> CrearAsync(Guid clienteId, List<VentaDetalle> detalles);
 
-    Task<Guid> Crear(CrearVentaDTO dto);
+    Task<IEnumerable<Venta>> ObtenerPorEmpresaAsync();
+
+    Task<Venta?> ObtenerPorIdAsync(Guid ventaId);
+
+    Task<bool> AnularAsync(Guid ventaId);
 }

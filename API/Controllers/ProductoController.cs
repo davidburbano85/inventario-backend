@@ -1,5 +1,6 @@
 ﻿using inventarioWebAI.Aplicacion.DTOs.Producto;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Aplicacion.Servicios;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -131,5 +132,19 @@ public class ProductoController : ControllerBase
         {
             return StatusCode(500, ex.Message);
         }
+    }
+
+
+    [HttpGet("{id:guid}/stock")]
+    public async Task<IActionResult> ObtenerStock(Guid id, [FromQuery] Guid almacenId)
+    {
+        var stock = await _servicio.ObtenerStockAsync(id, almacenId);
+
+        return Ok(new
+        {
+            ProductoId = id,
+            AlmacenId = almacenId,
+            Stock = stock
+        });
     }
 }

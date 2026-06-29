@@ -1,34 +1,24 @@
-﻿// Ubicación: /src/Infraestructura/RepositoriosDapper/CompraDetalleRepositorioDapper.cs
-
-using Dapper;
+﻿using Dapper;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Dominio.Entidades;
-using inventarioWebAI.Infraestructura.AccesoDatos;
 using System.Data;
 
 namespace inventarioWebAI.Infraestructura.RepositoriosDapper;
 
-public class CompraDetalleRepositorioDapper : ICompraDetalleRepositorio
+public class VentasDetalleRepositorioDapper : IVentasDetalleRepositorio
 {
-    private readonly IDbConnectionFactory _db;
-
-    public CompraDetalleRepositorioDapper(IDbConnectionFactory db)
-    {
-        _db = db;
-    }
-
     public async Task InsertarAsync(
         IDbConnection connection,
         IDbTransaction transaction,
-        Guid compraId,
+        Guid ventaId,
         Guid empresaId,
-        IEnumerable<CompraDetalle> detalles)
+        IEnumerable<VentaDetalle> detalles)
     {
         var sql = @"
-            INSERT INTO compras_detalle
+            INSERT INTO ventas_detalle
             (
                 empresa_id,
-                compra_id,
+                venta_id,
                 producto_id,
                 cantidad,
                 precio,
@@ -37,7 +27,7 @@ public class CompraDetalleRepositorioDapper : ICompraDetalleRepositorio
             VALUES
             (
                 @EmpresaId,
-                @CompraId,
+                @VentaId,
                 @ProductoId,
                 @Cantidad,
                 @Precio,
@@ -49,7 +39,7 @@ public class CompraDetalleRepositorioDapper : ICompraDetalleRepositorio
             await connection.ExecuteAsync(sql, new
             {
                 EmpresaId = empresaId,
-                CompraId = compraId,
+                VentaId = ventaId,
                 d.ProductoId,
                 d.Cantidad,
                 d.Precio
@@ -57,33 +47,39 @@ public class CompraDetalleRepositorioDapper : ICompraDetalleRepositorio
         }
     }
 
-    public async Task<IEnumerable<CompraDetalle>> ObtenerPorCompraAsync(
+    public async Task<IEnumerable<VentaDetalle>> ObtenerPorVentaAsync(
       IDbConnection connection,
       IDbTransaction transaction,
-      Guid compraId,
+      Guid ventaId,
       Guid empresaId)
     {
         var sql = @"
         SELECT
             id,
-            empresa_id,
-            compra_id,
-            producto_id,
-            cantidad,
-            precio,
-            created_at,
-            updated_at,
-            activo
-        FROM compras_detalle
-        WHERE compra_id = @CompraId
+            empresa_id        AS EmpresaId,
+            venta_id          AS VentaId,
+            producto_id       AS ProductoId,
+            cantidad          AS Cantidad,
+            precio            AS Precio,
+            created_at        AS CreatedAt,
+            updated_at        AS UpdatedAt,
+            activo            AS Activo
+        FROM ventas_detalle
+        WHERE venta_id = @VentaId
           AND empresa_id = @EmpresaId
           AND activo = true;";
 
-        return await connection.QueryAsync<CompraDetalle>(
+        var result = await connection.QueryAsync<VentaDetalle>(
             sql,
-            new { CompraId = compraId, EmpresaId = empresaId },
+            new
+            {
+                VentaId = ventaId,
+                EmpresaId = empresaId
+            },
             transaction
         );
+
+        return result;
     }
 
 

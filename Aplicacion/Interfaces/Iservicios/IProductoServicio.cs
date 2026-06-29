@@ -15,4 +15,5 @@ public interface IProductoServicio
     Task<bool> ActualizarProductoAsync(Guid productoId, string nombre, string? codigoSku, decimal precioVenta, decimal? precioCompra, Guid categoriaId);
 
     Task<bool> EliminarProductoAsync(Guid productoId);
+    Task<decimal> ObtenerStockAsync(Guid productoId, Guid almacenId);
 }

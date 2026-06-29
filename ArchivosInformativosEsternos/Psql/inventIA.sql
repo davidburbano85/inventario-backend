@@ -327,3 +327,15 @@
 --CREATE INDEX idx_stock_producto ON stock_actual(producto_id);
 --CREATE INDEX idx_mov_producto_fecha ON movimientos_inventario(producto_id, created_at);
 --CREATE INDEX idx_logs_empresa_fecha ON logs_sistema(empresa_id, created_at);
+
+---- 1. ALMACENES (CRÍTICO)
+--CREATE INDEX idx_almacenes_empresa_activo
+--ON almacenes (empresa_id, activo);
+
+---- 2. STOCK (CRÍTICO)
+--CREATE INDEX idx_stock_empresa_producto_almacen
+--ON stock_actual (empresa_id, producto_id, almacen_id);
+
+---- 3. MOVIMIENTOS (CRÍTICO)
+--CREATE INDEX idx_mov_empresa_producto_fecha
+--ON movimientos_inventario (empresa_id, producto_id, created_at);

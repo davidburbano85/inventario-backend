@@ -17,6 +17,8 @@ public interface ICompraDetalleRepositorio
 
     // Consulta los detalles de una compra perteneciente a una empresa.
     Task<IEnumerable<CompraDetalle>> ObtenerPorCompraAsync(
-        Guid compraId,
-        Guid empresaId);
+    IDbConnection connection,
+    IDbTransaction transaction,
+    Guid compraId,
+    Guid empresaId);
 }

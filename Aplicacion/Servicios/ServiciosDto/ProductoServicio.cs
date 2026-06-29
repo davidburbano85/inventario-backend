@@ -3,6 +3,7 @@ using inventarioWebAI.Aplicacion.Interfaces.Context;
 using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Infraestructura.AccesoDatos;
 
 namespace inventarioWebAI.Aplicacion.Servicios;
 
@@ -14,6 +15,8 @@ public class ProductoServicio : IProductoServicio
     private readonly IUsuarioContext _usuarioContext;
     private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
     private readonly IEmpresaRepositorio _empresaRepositorio;
+    private readonly IStockRepositorio _stockRepositorio;
+    private readonly IUnitOfWork _unitOfWork;
 
     public ProductoServicio(
         IProductoRepositorio productoRepositorio,
@@ -21,7 +24,8 @@ public class ProductoServicio : IProductoServicio
         IPermisoServicio permisoServicio,
         IUsuarioContext usuarioContext,
         IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
-        IEmpresaRepositorio empresaRepositorio)
+        IEmpresaRepositorio empresaRepositorio,
+        IUnitOfWork unitOfWork)
     {
         _productoRepositorio = productoRepositorio;
         _categoriaRepositorio = categoriaRepositorio;
@@ -29,6 +33,7 @@ public class ProductoServicio : IProductoServicio
         _usuarioContext = usuarioContext;
         _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
         _empresaRepositorio = empresaRepositorio;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Guid> CrearProductoAsync(string nombre, string? codigoSku, decimal precioVenta, decimal? precioCompra, Guid categoriaId)
@@ -253,4 +258,27 @@ public class ProductoServicio : IProductoServicio
 
         return await _productoRepositorio.EliminarProductoAsync(productoId, empresaId);
     }
+
+    /// Devuelve el stock actual de un producto en un almacén.
+    public async Task<decimal> ObtenerStockAsync(Guid productoId, Guid almacenId)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var stock = await _stockRepositorio.ObtenerCantidadAsync(
+            _unitOfWork.Connection,
+            _unitOfWork.Transaction,
+            empresa.EmpresaId,
+            productoId,
+            almacenId
+        );
+
+        return stock ?? 0;
+    }
+
+
 }

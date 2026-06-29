@@ -14,4 +14,6 @@ public class Almacen
     public string? Ubicacion { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
 }

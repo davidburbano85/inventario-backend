@@ -1,240 +1,240 @@
-﻿//// Ubicación: /src/Aplicacion/Servicios/VentasServicio.cs
+﻿using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Aplicacion.Interfaces.Context;
+using inventarioWebAI.Dominio.Entidades;
+using inventarioWebAI.Dominio.Enums;
 
-//using Dapper;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces;
-//using inventarioWebAI.Infraestructura.conexion;
-//using System.Data;
+namespace inventarioWebAI.Aplicacion.Servicios;
 
-//namespace inventarioWebAI.Aplicacion.Servicios;
+public class VentasServicio : IVentasServicio
+{
+    private readonly IVentasRepositorio _ventasRepositorio;
+    private readonly IStockRepositorio _stockRepositorio;
+    private readonly IMovimientosInventarioServicio _movimientosServicio;
+    private readonly IUsuarioContext _usuarioContext;
+    private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<VentasServicio> _logger;
+    private readonly IAlmacenServicio _almacenServicio;
+    private readonly IVentasDetalleRepositorio _ventasDetalleRepositorio;
+    private readonly IMovimientosInventarioRepositorio _movimientosInventarioRepositorio;
 
-//public class VentasServicio : IVentasServicio
-//{
-//    private readonly DbConnectionFactory _db;
 
-//    public VentasServicio(DbConnectionFactory db)
-//    {
-//        _db = db;
-//    }
+    public VentasServicio(
+        IVentasRepositorio ventasRepositorio,
+        IStockRepositorio stockRepositorio,
+        IMovimientosInventarioServicio movimientosServicio,
+        IUsuarioContext usuarioContext,
+        IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+        IUnitOfWork unitOfWork,
+        ILogger<VentasServicio> logger,
+        IAlmacenServicio almacenServicio,
+        IVentasDetalleRepositorio ventasDetalleRepositorio,
+        IMovimientosInventarioRepositorio movimientosInventarioRepositorio)
+    {
+        _ventasRepositorio = ventasRepositorio;
+        _stockRepositorio = stockRepositorio;
+        _movimientosServicio = movimientosServicio;
+        _usuarioContext = usuarioContext;
+        _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
+        _unitOfWork = unitOfWork;
+        _logger = logger;
+        _almacenServicio = almacenServicio;
+        _ventasDetalleRepositorio = ventasDetalleRepositorio;
+        _movimientosInventarioRepositorio = movimientosInventarioRepositorio;
+    }
 
-//    public async Task<IEnumerable<VentaDTO>> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        using var connection = _db.CrearConexion();
+    public async Task<Guid> CrearAsync(Guid clienteId, List<VentaDetalle> detalles)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        var sql = @"
-//            SELECT
-//                id,
-//                empresa_id AS EmpresaId,
-//                cliente_id AS ClienteId,
-//                total,
-//                created_at AS CreatedAt
-//            FROM ventas
-//            WHERE empresa_id = @EmpresaId
-//            ORDER BY created_at DESC
-//        ";
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//        return await connection.QueryAsync<VentaDTO>(sql, new { EmpresaId = empresaId });
-//    }
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//    public async Task<Guid> Crear(CrearVentaDTO dto)
-//    {
-//        using var connection = _db.CrearConexion();
-//        connection.Open();
+        var uow = _unitOfWork;
 
-//        using var transaction = connection.BeginTransaction();
+        try
+        {
+            var almacenId = await _almacenServicio.ObtenerAlmacenActivoAsync();
 
-//        try
-//        {
-//            // EXISTENTE: validaciones básicas
-//            if (dto.EmpresaId == Guid.Empty)
-//                throw new InvalidOperationException("EmpresaId es requerido.");
+            // =========================
+            // VALIDAR STOCK
+            // =========================
+            foreach (var d in detalles)
+            {
+                var stock = await _stockRepositorio.ObtenerCantidadAsync(
+                    uow.Connection,
+                    uow.Transaction,
+                    empresa.EmpresaId,
+                    d.ProductoId,
+                    almacenId
+                );
 
-//            if (dto.AlmacenId == Guid.Empty)
-//                throw new InvalidOperationException("AlmacenId es requerido.");
+                if (stock == null || stock < d.Cantidad)
+                    throw new InvalidOperationException("Stock insuficiente.");
+            }
 
-//            if (dto.UsuarioId == Guid.Empty)
-//                throw new InvalidOperationException("UsuarioId es requerido.");
+            // =========================
+            // TOTAL
+            // =========================
+            var total = detalles.Sum(x => x.Cantidad * x.Precio);
 
-//            if (!dto.Detalles.Any())
-//                throw new InvalidOperationException("La venta debe tener al menos un detalle.");
+            // =========================
+            // INSERT VENTA
+            // =========================
+            var ventaId = await _ventasRepositorio.CrearVentaAsync(
+                uow.Connection,
+                uow.Transaction,
+                new Venta
+                {
+                    EmpresaId = empresa.EmpresaId,
+                    ClienteId = clienteId,
+                    Total = total
+                });
 
-//            foreach (var item in dto.Detalles)
-//            {
-//                if (item.Cantidad <= 0)
-//                    throw new InvalidOperationException("La cantidad debe ser mayor a 0.");
+            // =========================
+            // INSERT DETALLES
+            // =========================
+            await _ventasDetalleRepositorio.InsertarAsync(
+                uow.Connection,
+                uow.Transaction,
+                ventaId,
+                empresa.EmpresaId,
+                detalles
+            );
 
-//                if (item.Precio < 0)
-//                    throw new InvalidOperationException("El precio no puede ser negativo.");
-//            }
+            // =========================
+            // MOVIMIENTOS INVENTARIO (SALIDA)
+            // =========================
+            foreach (var d in detalles)
+            {
+                await _movimientosInventarioRepositorio.InsertarAsync(
+                    uow.Connection,
+                    uow.Transaction,
+                    new MovimientoInventario
+                    {
+                        EmpresaId = empresa.EmpresaId,
+                        ProductoId = d.ProductoId,
+                        AlmacenId = almacenId,
+                        UsuarioId = usuarioId,
+                        Tipo = TipoMovimiento.Salida,
+                        Cantidad = d.Cantidad,
+                        Motivo = "Venta"
+                    }
+                );
+            }
 
-//            // NUEVO: validación multi-tenant usuario → empresa
-//            var sqlValidarUsuarioEmpresa = @"
-//                SELECT pertenece_empresa(@EmpresaId);
-//            ";
+            // =========================
+            // COMMIT
+            // =========================
+            uow.Commit();
 
-//            var pertenece = await connection.ExecuteScalarAsync<bool>(sqlValidarUsuarioEmpresa, new
-//            {
-//                dto.EmpresaId
-//            }, transaction);
+            return ventaId;
+        }
+        catch
+        {
+            uow.Rollback();
+            throw;
+        }
+    }
 
-//            if (!pertenece)
-//                throw new UnauthorizedAccessException("El usuario no pertenece a la empresa."); // NUEVO
 
-//            // EXISTENTE: validar almacén pertenece a empresa
-//            var sqlValidarAlmacen = @"
-//                SELECT COUNT(1)
-//                FROM almacenes
-//                WHERE id = @AlmacenId AND empresa_id = @EmpresaId;
-//            ";
+    public async Task<IEnumerable<Venta>> ObtenerPorEmpresaAsync()
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//            var almacenValido = await connection.ExecuteScalarAsync<int>(sqlValidarAlmacen, new
-//            {
-//                dto.AlmacenId,
-//                dto.EmpresaId
-//            }, transaction);
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//            if (almacenValido == 0)
-//                throw new InvalidOperationException("El almacén no pertenece a la empresa.");
+        var uow = _unitOfWork;
 
-//            // EXISTENTE: validación batch productos
-//            var productoIds = dto.Detalles.Select(x => x.ProductoId).Distinct().ToList();
+        return await _ventasRepositorio.ObtenerPorEmpresaAsync(
+            uow.Connection,
+            uow.Transaction,
+            empresa!.EmpresaId
+        );
+    }
 
-//            var sqlValidarProductos = @"
-//                SELECT id
-//                FROM productos
-//                WHERE empresa_id = @EmpresaId
-//                  AND id = ANY(@ProductoIds);
-//            ";
+    public async Task<Venta?> ObtenerPorIdAsync(Guid ventaId)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//            var productosValidos = (await connection.QueryAsync<Guid>(sqlValidarProductos, new
-//            {
-//                dto.EmpresaId,
-//                ProductoIds = productoIds
-//            }, transaction)).ToHashSet();
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//            foreach (var id in productoIds)
-//            {
-//                if (!productosValidos.Contains(id))
-//                    throw new InvalidOperationException($"El producto {id} no pertenece a la empresa.");
-//            }
+        var uow = _unitOfWork;
 
-//            // MODIFICADO: validación de stock por producto + almacén
-//            foreach (var item in dto.Detalles)
-//            {
-//                var sqlStock = @"
-//                    SELECT COALESCE(cantidad,0)
-//                    FROM stock_actual
-//                    WHERE empresa_id = @EmpresaId
-//                      AND producto_id = @ProductoId
-//                      AND almacen_id = @AlmacenId;
-//                ";
+        return await _ventasRepositorio.ObtenerPorIdAsync(
+            uow.Connection,
+            uow.Transaction,
+            ventaId,
+            empresa!.EmpresaId
+        );
+    }
 
-//                var stockDisponible = await connection.ExecuteScalarAsync<decimal?>(sqlStock, new
-//                {
-//                    dto.EmpresaId,
-//                    item.ProductoId,
-//                    dto.AlmacenId
-//                }, transaction) ?? 0;
+    public async Task<bool> AnularAsync(Guid ventaId)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//                if (stockDisponible < item.Cantidad)
-//                    throw new InvalidOperationException($"Stock insuficiente para el producto {item.ProductoId} en el almacén {dto.AlmacenId}.");
-//            }
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
 
-//            var total = dto.Detalles.Sum(x => x.Cantidad * x.Precio);
+        if (empresa == null)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//            var sqlVenta = @"
-//                INSERT INTO ventas (
-//                    empresa_id,
-//                    cliente_id,
-//                    total
-//                )
-//                VALUES (
-//                    @EmpresaId,
-//                    @ClienteId,
-//                    @Total
-//                )
-//                RETURNING id;
-//            ";
+        var uow = _unitOfWork;
 
-//            var ventaId = await connection.ExecuteScalarAsync<Guid>(sqlVenta, new
-//            {
-//                dto.EmpresaId,
-//                dto.ClienteId,
-//                Total = total
-//            }, transaction);
+        try
+        {
+            var almacenId = await _almacenServicio.ObtenerAlmacenActivoAsync();
 
-//            var sqlDetalle = @"
-//                INSERT INTO ventas_detalle (
-//                    empresa_id,
-//                    venta_id,
-//                    producto_id,
-//                    cantidad,
-//                    precio
-//                )
-//                VALUES (
-//                    @EmpresaId,
-//                    @VentaId,
-//                    @ProductoId,
-//                    @Cantidad,
-//                    @Precio
-//                );
-//            ";
+            if (almacenId == Guid.Empty)
+                throw new InvalidOperationException("Almacén inválido.");
 
-//            foreach (var item in dto.Detalles)
-//            {
-//                await connection.ExecuteAsync(sqlDetalle, new
-//                {
-//                    EmpresaId = dto.EmpresaId,
-//                    VentaId = ventaId,
-//                    item.ProductoId,
-//                    item.Cantidad,
-//                    item.Precio
-//                }, transaction);
-//            }
+            var detalles = await _ventasDetalleRepositorio.ObtenerPorVentaAsync(
+                uow.Connection,
+                uow.Transaction,
+                ventaId,
+                empresa.EmpresaId
+            );
 
-//            var sqlMovimiento = @"
-//                INSERT INTO movimientos_inventario (
-//                    empresa_id,
-//                    producto_id,
-//                    almacen_id,
-//                    usuario_id,
-//                    tipo,
-//                    cantidad,
-//                    motivo
-//                )
-//                VALUES (
-//                    @EmpresaId,
-//                    @ProductoId,
-//                    @AlmacenId,
-//                    @UsuarioId,
-//                    'salida',
-//                    @Cantidad,
-//                    @Motivo
-//                );
-//            ";
+            var result = await _ventasRepositorio.AnularVentaAsync(
+                uow.Connection,
+                uow.Transaction,
+                ventaId,
+                empresa.EmpresaId
+            );
 
-//            foreach (var item in dto.Detalles)
-//            {
-//                await connection.ExecuteAsync(sqlMovimiento, new
-//                {
-//                    EmpresaId = dto.EmpresaId,
-//                    item.ProductoId,
-//                    AlmacenId = dto.AlmacenId,
-//                    UsuarioId = dto.UsuarioId,
-//                    item.Cantidad,
-//                    Motivo = $"Venta {ventaId}"
-//                }, transaction);
-//            }
+            if (!result)
+            {
+                uow.Rollback();
+                return false;
+            }
 
-//            transaction.Commit();
+            foreach (var d in detalles)
+            {
+                await _movimientosInventarioRepositorio.InsertarAsync(
+                    uow.Connection,
+                    uow.Transaction,
+                    new MovimientoInventario
+                    {
+                        EmpresaId = empresa.EmpresaId,
+                        ProductoId = d.ProductoId,
+                        AlmacenId = almacenId,
+                        UsuarioId = usuarioId,
+                        Tipo = TipoMovimiento.Entrada,
+                        Cantidad = d.Cantidad,
+                        Motivo = "Anulación de venta"
+                    }
+                );
+            }
 
-//            return ventaId;
-//        }
-//        catch
-//        {
-//            transaction.Rollback();
-//            throw;
-//        }
-//    }
-//}
-
+            uow.Commit();
+            return true;
+        }
+        catch
+        {
+            uow.Rollback();
+            throw;
+        }
+    }
+}

@@ -1,48 +1,72 @@
-//using Microsoft.AspNetCore.Mvc;
-//using Microsoft.AspNetCore.Authorization;
-//using System.Security.Claims;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using Microsoft.AspNetCore.Mvc;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Dominio.Entidades;
 
-//namespace inventarioWebAI.API.Controllers;
+namespace inventarioWebAI.API.Controllers;
 
-//[ApiController]
-//[Route("api/ventas")]
-//[Authorize]
-//public class VentasController : ControllerBase
-//{
-//    private readonly IVentasServicio _servicio;
+[ApiController]
+[Route("api/[controller]")]
+public class VentasController : ControllerBase
+{
+    private readonly IVentasServicio _ventasServicio;
 
-//    public VentasController(IVentasServicio servicio)
-//    {
-//        _servicio = servicio;
-//    }
+    public VentasController(IVentasServicio ventasServicio)
+    {
+        _ventasServicio = ventasServicio;
+    }
 
-//    private Guid? GetRequesterId()
-//    {
-//        var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-//        if (Guid.TryParse(sub, out var id)) return id;
-//        return null;
-//    }
+    [HttpPost]
+    public async Task<IActionResult> Crear([FromBody] CrearVentaRequest request)
+    {
+        if (request == null || request.Detalles == null || !request.Detalles.Any())
+            return BadRequest("Datos inválidos.");
 
-//    [HttpGet("{empresaId}")]
-//    public async Task<IActionResult> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        var result = await _servicio.ObtenerPorEmpresa(empresaId);
-//        return Ok(result);
-//    }
+        var ventaId = await _ventasServicio.CrearAsync(
+            request.ClienteId,
+            request.Detalles
+        );
 
-//    [HttpPost]
-//    public async Task<IActionResult> Crear([FromBody] CrearVentaDTO dto)
-//    {
-//        var requester = GetRequesterId();
-//        if (requester is null) return Unauthorized();
+        return Ok(new { VentaId = ventaId });
+    }
 
-//        if (!ModelState.IsValid) return BadRequest(ModelState);
+    
+    
+    
+    [HttpGet]
+    public async Task<IActionResult> ObtenerPorEmpresa()
+    {
+        var result = await _ventasServicio.ObtenerPorEmpresaAsync();
+        return Ok(result);
+    }
 
-//        dto.UsuarioId = requester.Value;
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> ObtenerPorId(Guid id)
+    {
+        var result = await _ventasServicio.ObtenerPorIdAsync(id);
 
-//        var id = await _servicio.Crear(dto);
-//        return Ok(new { id });
-//    }
-//}
+        if (result == null)
+            return NotFound();
+
+        return Ok(result);
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Anular(Guid id)
+    {
+        var ok = await _ventasServicio.AnularAsync(id);
+
+        if (!ok)
+            return BadRequest("No se pudo anular la venta.");
+
+        return Ok(true);
+    }
+}
+
+/// <summary>
+/// Request DTO mínimo del controller (sin exponer EmpresaId ni UsuarioId)
+/// </summary>
+public class CrearVentaRequest
+{
+    public Guid ClienteId { get; set; }
+    public List<VentaDetalle> Detalles { get; set; } = new();
+}

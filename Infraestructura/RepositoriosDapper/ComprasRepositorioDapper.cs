@@ -1,23 +1,17 @@
 ﻿using Dapper;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Dominio.Entidades;
-using inventarioWebAI.Infraestructura.AccesoDatos;
+using System.Data;
 
 namespace inventarioWebAI.Infraestructura.RepositoriosDapper;
 
 public class ComprasRepositorioDapper : IComprasRepositorio
 {
-    private readonly IDbConnectionFactory _db;
-
-    public ComprasRepositorioDapper(IDbConnectionFactory db)
+    public async Task<Guid> CrearCompraAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Compra compra)
     {
-        _db = db;
-    }
-
-    public async Task<Guid> CrearCompraAsync(Compra compra)
-    {
-        using var conn = _db.CrearConexion();
-
         var sql = @"
             INSERT INTO compras
             (
@@ -35,45 +29,81 @@ public class ComprasRepositorioDapper : IComprasRepositorio
             )
             RETURNING id;";
 
-        return await conn.ExecuteScalarAsync<Guid>(sql, compra);
+        return await connection.ExecuteScalarAsync<Guid>(
+            sql,
+            new
+            {
+                compra.EmpresaId,
+                compra.ProveedorId,
+                compra.Total
+            },
+            transaction
+        );
     }
 
-    public async Task<IEnumerable<Compra?>> ObtenerPorEmpresaAsync(Guid empresaId)
+    public async Task<IEnumerable<Compra>> ObtenerPorEmpresaAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid empresaId)
     {
-        using var conn = _db.CrearConexion();
-
         var sql = @"
-            SELECT *
+            SELECT
+                id,
+                empresa_id,
+                proveedor_id,
+                total,
+                created_at,
+                updated_at,
+                activo
             FROM compras
             WHERE empresa_id = @EmpresaId
               AND activo = true
             ORDER BY created_at DESC;";
 
-        return await conn.QueryAsync<Compra>(sql, new { EmpresaId = empresaId });
+        return await connection.QueryAsync<Compra>(
+            sql,
+            new { EmpresaId = empresaId },
+            transaction
+        );
     }
 
-    public async Task<Compra?> ObtenerPorIdAsync(Guid id, Guid empresaId)
+    public async Task<Compra?> ObtenerPorIdAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid id,
+        Guid empresaId)
     {
-        using var conn = _db.CrearConexion();
-
         var sql = @"
-            SELECT *
+            SELECT
+                id,
+                empresa_id,
+                proveedor_id,
+                total,
+                created_at,
+                updated_at,
+                activo
             FROM compras
             WHERE id = @Id
               AND empresa_id = @EmpresaId
               AND activo = true;";
 
-        return await conn.QueryFirstOrDefaultAsync<Compra>(sql, new
-        {
-            Id = id,
-            EmpresaId = empresaId
-        });
+        return await connection.QueryFirstOrDefaultAsync<Compra>(
+            sql,
+            new
+            {
+                Id = id,
+                EmpresaId = empresaId
+            },
+            transaction
+        );
     }
 
-    public async Task<bool> AnularCompraAsync(Guid id, Guid empresaId)
+    public async Task<bool> AnularCompraAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid id,
+        Guid empresaId)
     {
-        using var conn = _db.CrearConexion();
-
         var sql = @"
             UPDATE compras
             SET activo = false,
@@ -82,12 +112,49 @@ public class ComprasRepositorioDapper : IComprasRepositorio
               AND empresa_id = @EmpresaId
               AND activo = true;";
 
-        var rows = await conn.ExecuteAsync(sql, new
-        {
-            Id = id,
-            EmpresaId = empresaId
-        });
+        var rows = await connection.ExecuteAsync(
+            sql,
+            new
+            {
+                Id = id,
+                EmpresaId = empresaId
+            },
+            transaction
+        );
 
         return rows > 0;
+    }
+
+    public async Task<IEnumerable<CompraDetalle>> ObtenerPorCompraAsync(
+    IDbConnection connection,
+    IDbTransaction transaction,
+    Guid compraId,
+    Guid empresaId)
+    {
+        var sql = @"
+        SELECT
+            id,
+            empresa_id,
+            compra_id,
+            producto_id,
+            cantidad,
+            precio,
+            created_at,
+            updated_at,
+            activo
+        FROM compras_detalle
+        WHERE compra_id = @CompraId
+          AND empresa_id = @EmpresaId
+          AND activo = true;";
+
+        return await connection.QueryAsync<CompraDetalle>(
+            sql,
+            new
+            {
+                CompraId = compraId,
+                EmpresaId = empresaId
+            },
+            transaction
+        );
     }
 }
