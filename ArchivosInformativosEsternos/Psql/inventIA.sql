@@ -205,6 +205,19 @@
 --  CONSTRAINT resumen_compras_check CHECK (total_compras >= 0)
 --);
 
+--ALTER TABLE resumen_diario_inventario
+--ADD COLUMN almacen_id UUID;
+
+--ALTER TABLE resumen_diario_inventario
+--DROP CONSTRAINT IF EXISTS resumen_diario_unique;
+
+--ALTER TABLE resumen_diario_inventario
+--ADD CONSTRAINT resumen_diario_unique
+--UNIQUE (empresa_id, almacen_id, producto_id, fecha);
+
+
+
+
 ---- LOGS SISTEMA
 --CREATE TABLE logs_sistema (
 --  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -217,6 +230,33 @@
 --  activo BOOLEAN DEFAULT TRUE
 --);
 
+
+---- monitore resumendiario 
+
+--CREATE TABLE IF NOT EXISTS monitoreo_resumen_inventario (
+--    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+--    empresa_id UUID,
+--    almacen_id UUID,
+
+--    tipo_proceso TEXT NOT NULL, 
+--    -- 'diario' | 'rango' | 'rebuild'
+
+--    fecha_desde DATE,
+--    fecha_hasta DATE,
+
+--    estado TEXT NOT NULL, 
+--    -- 'en_proceso' | 'exitoso' | 'fallido' | 'reintentado_exitoso'
+
+--    registros_procesados INTEGER DEFAULT 0,
+
+--    mensaje TEXT,
+
+--    fecha_inicio TIMESTAMPTZ DEFAULT timezone('America/Bogota', now()),
+--    fecha_fin TIMESTAMPTZ,
+
+--    creado_en TIMESTAMPTZ DEFAULT timezone('America/Bogota', now())
+--);
 ---- =========================================================
 ---- 3. FUNCIONES
 ---- =========================================================
@@ -291,6 +331,200 @@
 --END;
 --$$ LANGUAGE plpgsql SECURITY DEFINER;
 
+
+
+---- ==========================  
+----   funcion resumen diario almacen_id
+----==================================
+--CREATE OR REPLACE FUNCTION generar_resumen_diario_inventario()
+--RETURNS void
+--LANGUAGE plpgsql
+--AS $$
+--DECLARE
+--    total_registros INTEGER := 0;
+--    fecha_proceso DATE := CURRENT_DATE;
+--BEGIN
+
+--    -- 🟡 Registrar inicio en nuevo monitoreo
+--    INSERT INTO monitoreo_resumen_inventario (
+--        empresa_id,
+--        almacen_id,
+--        tipo_proceso,
+--        fecha_desde,
+--        fecha_hasta,
+--        estado,
+--        mensaje
+--    )
+--    SELECT
+--        NULL,
+--        NULL,
+--        'diario',
+--        fecha_proceso,
+--        fecha_proceso,
+--        'en_proceso',
+--        'Inicio batch diario';
+
+--    -- 🚀 Proceso principal
+--    WITH upsert AS (
+--        INSERT INTO resumen_diario_inventario
+--        (
+--            empresa_id,
+--            almacen_id,
+--            producto_id,
+--            fecha,
+--            total_ventas,
+--            total_compras,
+--            created_at,
+--            updated_at,
+--            activo
+--        )
+--        SELECT
+--            m.empresa_id,
+--            m.almacen_id,
+--            m.producto_id,
+--            DATE(m.created_at),
+--            SUM(CASE WHEN m.tipo = 'salida' THEN m.cantidad ELSE 0 END),
+--            SUM(CASE WHEN m.tipo = 'entrada' THEN m.cantidad ELSE 0 END),
+--            timezone('America/Bogota', now()),
+--            timezone('America/Bogota', now()),
+--            true
+--        FROM movimientos_inventario m
+--        WHERE m.activo = true
+--        GROUP BY
+--            m.empresa_id,
+--            m.almacen_id,
+--            m.producto_id,
+--            DATE(m.created_at)
+--        ON CONFLICT (empresa_id, almacen_id, producto_id, fecha)
+--        DO UPDATE SET
+--            total_ventas = EXCLUDED.total_ventas,
+--            total_compras = EXCLUDED.total_compras,
+--            updated_at = timezone('America/Bogota', now())
+--        RETURNING 1
+--    )
+--    SELECT COUNT(*) INTO total_registros FROM upsert;
+
+--    -- ✅ Marcar éxito
+--    UPDATE monitoreo_resumen_inventario
+--    SET
+--        estado = 'exitoso',
+--        registros_procesados = total_registros,
+--        mensaje = 'Batch ejecutado correctamente',
+--        fecha_fin = timezone('America/Bogota', now())
+--    WHERE tipo_proceso = 'diario'
+--      AND fecha_desde = fecha_proceso
+--      AND estado = 'en_proceso';
+
+--EXCEPTION WHEN OTHERS THEN
+
+--    -- ❌ Marcar fallo
+--    INSERT INTO monitoreo_resumen_inventario (
+--        empresa_id,
+--        almacen_id,
+--        tipo_proceso,
+--        fecha_desde,
+--        fecha_hasta,
+--        estado,
+--        registros_procesados,
+--        mensaje,
+--        fecha_fin
+--    )
+--    VALUES (
+--        NULL,
+--        NULL,
+--        'diario',
+--        fecha_proceso,
+--        fecha_proceso,
+--        'fallido',
+--        0,
+--        SQLERRM,
+--        timezone('America/Bogota', now())
+--    );
+
+--END;
+--$$;
+
+---- este es para informacion
+--SELECT *
+--FROM monitoreo_resumen_inventario
+--ORDER BY creado_en DESC
+--LIMIT 10;
+
+--SELECT *
+--FROM monitoreo_resumen_inventario
+--WHERE fecha_desde = CURRENT_DATE
+--  AND estado = 'fallido';
+
+--SELECT *
+--FROM monitoreo_resumen_inventario
+--WHERE fecha_desde = CURRENT_DATE;
+
+------------------------
+---- funcion de reintento automatico 
+---- ====================
+--CREATE OR REPLACE FUNCTION reintentar_resumen_diario()
+--RETURNS void
+--LANGUAGE plpgsql
+--AS $$
+--DECLARE
+--    registro_fallido RECORD;
+--BEGIN
+
+--    -- 🔍 Buscar último fallo del batch diario
+--    SELECT *
+--    INTO registro_fallido
+--    FROM monitoreo_resumen_inventario
+--    WHERE estado = 'fallido'
+--      AND tipo_proceso = 'diario'
+--    ORDER BY creado_en DESC
+--    LIMIT 1;
+
+--    -- ❌ Si no hay fallos, salir
+--    IF registro_fallido IS NULL THEN
+--        RETURN;
+--    END IF;
+
+--    -- ⏱ Evitar reintentos excesivos (30 min)
+--    IF registro_fallido.fecha_fin IS NOT NULL
+--       AND registro_fallido.fecha_fin > now() - interval '30 minutes' THEN
+--        RETURN;
+--    END IF;
+
+--    -- 🟡 Marcar en proceso
+--    UPDATE monitoreo_resumen_inventario
+--    SET estado = 'en_proceso'
+--    WHERE id = registro_fallido.id;
+
+--    -- 🚀 Reintento seguro
+--    BEGIN
+
+--        PERFORM generar_resumen_diario_inventario();
+
+--        -- ✅ éxito
+--        UPDATE monitoreo_resumen_inventario
+--        SET
+--            estado = 'reintentado_exitoso',
+--            mensaje = 'Reintento exitoso',
+--            fecha_fin = timezone('America/Bogota', now())
+--        WHERE id = registro_fallido.id;
+
+--    EXCEPTION WHEN OTHERS THEN
+
+--        -- ❌ fallo otra vez
+--        UPDATE monitoreo_resumen_inventario
+--        SET
+--            estado = 'fallido',
+--            mensaje = SQLERRM,
+--            fecha_fin = timezone('America/Bogota', now())
+--        WHERE id = registro_fallido.id;
+
+--    END;
+
+--END;
+--$$;
+
+
+
 ---- =========================================================
 ---- 4. TRIGGERS
 ---- =========================================================
@@ -328,6 +562,7 @@
 --CREATE INDEX idx_mov_producto_fecha ON movimientos_inventario(producto_id, created_at);
 --CREATE INDEX idx_logs_empresa_fecha ON logs_sistema(empresa_id, created_at);
 
+
 ---- 1. ALMACENES (CRÍTICO)
 --CREATE INDEX idx_almacenes_empresa_activo
 --ON almacenes (empresa_id, activo);
@@ -339,3 +574,32 @@
 ---- 3. MOVIMIENTOS (CRÍTICO)
 --CREATE INDEX idx_mov_empresa_producto_fecha
 --ON movimientos_inventario (empresa_id, producto_id, created_at);
+
+
+
+--CREATE INDEX idx_resumen_diario_almacen_fecha
+--ON resumen_diario_inventario (empresa_id, almacen_id, fecha);
+
+--CREATE INDEX idx_resumen_diario_producto
+--ON resumen_diario_inventario (empresa_id, producto_id);
+
+--CREATE INDEX idx_resumen_diario_full
+--ON resumen_diario_inventario (empresa_id, almacen_id, producto_id, fecha);
+
+--CREATE INDEX idx_mov_agg
+--ON movimientos_inventario (
+--    empresa_id,
+--    almacen_id,
+--    producto_id,
+--    created_at,
+--    activo
+--);
+
+
+
+
+--SELECT cron.schedule(
+--    'resumen_diario_inventario_job',
+--    '0 4 * * *',
+--    $$ SELECT generar_resumen_diario_inventario(); $$
+--);

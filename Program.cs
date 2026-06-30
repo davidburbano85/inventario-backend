@@ -112,8 +112,18 @@ builder.Services.AddScoped<IMovimientosInventarioServicio, MovimientosInventario
 
 //======================== IUnitOfWork ==========================================
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-// ======================== contexto ==========================================
+// ======================== contexto servicio ==========================================
 builder.Services.AddScoped<IUsuarioContext, UsuarioContextService>();
+
+// ======================== contexto usuario empresa==========================================
+builder.Services.AddScoped<IUsuarioEmpresaContextService, UsuarioEmpresaContextService>();
+
+//==========================Resumen Diario ========================
+builder.Services.AddScoped<IResumenDiarioInventarioRepositorio, ResumenDiarioInventarioRepositorioDapper>();
+builder.Services.AddScoped<IResumenDiarioInventarioServicio, ResumenDiarioInventarioServicio>();
+
+//========================== Monitoreo Resumen Diario ========================
+builder.Services.AddScoped<IMonitoreoResumenInventarioRepositorio, MonitoreoResumenInventarioRepositorioDapper>();
 
 
 

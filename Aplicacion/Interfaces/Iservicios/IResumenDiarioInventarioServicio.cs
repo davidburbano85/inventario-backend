@@ -1,21 +1,29 @@
-﻿// Ubicación: /src/Aplicacion/Interfaces/IResumenDiarioInventarioServicio.cs
+﻿using inventarioWebAI.Dominio.Entidades;
 
-
-// Ubicación: /src/Aplicacion/Interfaces/IResumenDiarioInventarioServicio.cs
-
-using inventarioWebAI.Aplicacion.DTOs.ResumenDiarioInventario;
-
-namespace inventarioWebAI.Aplicacion.Interfaces.Iservicios;
-
-// NUEVO: interfaz para el servicio de resumen diario de inventario
-// POR QUÉ:
-// - Mantener consistencia con patrón existente (Servicio + Interfaz)
-// - Permitir inyección de dependencias
-public interface IResumenDiarioInventarioServicio
+namespace inventarioWebAI.Aplicacion.Interfaces.Iservicios
 {
-    // NUEVO: obtiene resumen diario por empresa
-    Task<IEnumerable<ResumenDiarioInventarioDTO>> ObtenerPorEmpresa(Guid empresaId);
+    public interface IResumenDiarioInventarioServicio
+    {
+        Task<int> GenerarResumenDiarioAsync(Guid almacenId, DateTime fecha);
 
-    // NUEVO: obtiene resumen diario por producto
-    Task<IEnumerable<ResumenDiarioInventarioDTO>> ObtenerPorProducto(Guid empresaId, Guid productoId);
+        Task<int> GenerarResumenPorRangoAsync(Guid almacenId, DateTime fechaInicio, DateTime fechaFin);
+
+        Task<IEnumerable<ResumenDiarioInventario>> ObtenerPorRangoAsync(
+            Guid almacenId,
+            DateTime fechaInicio,
+            DateTime fechaFin);
+
+        Task<ResumenDiarioInventario?> ObtenerPorProductoYFechaAsync(
+            Guid almacenId,
+            Guid productoId,
+            DateTime fecha);
+
+        Task<bool> RecalcularProductoAsync(
+            Guid almacenId,
+            Guid productoId,
+            DateTime fechaInicio,
+            DateTime fechaFin);
+
+        Task<Guid> EjecutarDiarioAsync(Guid empresaId, Guid? almacenId = null);
+    }
 }

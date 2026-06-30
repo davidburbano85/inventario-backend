@@ -1,180 +1,114 @@
 ﻿using inventarioWebAI.Aplicacion.DTOs.Almacen;
 using inventarioWebAI.Aplicacion.Interfaces.Context;
-using inventarioWebAI.Aplicacion.Interfaces.IPermmisoServicios;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using inventarioWebAI.Dominio.Entidades;
 using Microsoft.Extensions.Caching.Memory;
-
 
 namespace inventarioWebAI.Aplicacion.Servicios;
 
 public class AlmacenServicio : IAlmacenServicio
 {
     private readonly IAlmacenRepositorio _almacenRepositorio;
-    private readonly IPermisoServicio _permisoServicio;
+    private readonly IUsuarioEmpresaContextService _contextService;
     private readonly IUsuarioContext _usuarioContext;
-    private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
-    private readonly IEmpresaRepositorio _empresaRepositorio;
-    private readonly Dictionary<Guid, Guid> _almacenCache = new();
     private readonly ILogger<AlmacenServicio> _logger;
     private readonly IMemoryCache _cache;
+
     public AlmacenServicio(
         IAlmacenRepositorio almacenRepositorio,
-        IPermisoServicio permisoServicio,
+        IUsuarioEmpresaContextService contextService,
         IUsuarioContext usuarioContext,
-        IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
-        IEmpresaRepositorio empresaRepositorio,
         ILogger<AlmacenServicio> logger,
         IMemoryCache cache)
     {
         _almacenRepositorio = almacenRepositorio;
-        _permisoServicio = permisoServicio;
+        _contextService = contextService;
         _usuarioContext = usuarioContext;
-        _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
-        _empresaRepositorio = empresaRepositorio;
         _logger = logger;
         _cache = cache;
     }
 
-    // ==============================
+    // =====================================================
     // CREAR ALMACÉN
-    // ==============================
+    // =====================================================
     public async Task<Guid> CrearAlmacenAsync(Guid usuarioId, string nombre, string ubicacion)
     {
         if (usuarioId == Guid.Empty)
-            throw new InvalidOperationException("El ID del usuario es inválido.");
+            throw new InvalidOperationException("Usuario inválido.");
 
         if (string.IsNullOrWhiteSpace(nombre))
-            throw new InvalidOperationException("El nombre del almacén es obligatorio.");
+            throw new InvalidOperationException("Nombre obligatorio.");
 
         if (string.IsNullOrWhiteSpace(ubicacion))
-            throw new InvalidOperationException("La ubicación del almacén es obligatoria.");
+            throw new InvalidOperationException("Ubicación obligatoria.");
 
-        // 1. Validar empresa activa del usuario
-        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+        var ctx = await _contextService.GetAsync();
 
-        if (usuarioEmpresa == null)
-            throw new InvalidOperationException("El usuario no tiene una empresa activa.");
+        if (!ctx.EsSuperAdmin)
+            throw new UnauthorizedAccessException("Solo SuperAdmin puede crear almacenes.");
 
-        var empresaId = usuarioEmpresa.EmpresaId;
-
-        // 2. Validar que la empresa exista (consistencia de datos)
-        var empresa = await _empresaRepositorio.ObtenerEmpresaPorIdAsync(empresaId);
-
-        if (empresa == null)
-            throw new InvalidOperationException("La empresa no existe.");
-
-        // 3. Validar permisos (solo SuperAdmin)
-        var esSuperAdmin = await _permisoServicio.EsSuperAdminAsync(usuarioId, empresaId);
-
-        if (!esSuperAdmin)
-            throw new UnauthorizedAccessException("Solo un SuperAdmin puede crear almacenes.");
-
-        // 4. Crear entidad
         var almacen = new Almacen
         {
-            EmpresaId = empresaId,
+            EmpresaId = ctx.EmpresaId,
             Nombre = nombre.Trim(),
             Ubicacion = ubicacion.Trim()
         };
 
-        // 5. Persistir
-        var id = await _almacenRepositorio.CrearAlmacenAsync(almacen);
-
-        return id;
+        return await _almacenRepositorio.CrearAlmacenAsync(almacen);
     }
 
-
-
-    // ==============================
+    // =====================================================
     // OBTENER ALMACENES
-    // ==============================
+    // =====================================================
     public async Task<IEnumerable<AlmacenDTO>> ObtenerAlmacenesActivosPorEmpresaAsync()
     {
-        try
+        var ctx = await _contextService.GetAsync();
+
+        var almacenes = await _almacenRepositorio
+            .ObtenerAlmacenesActivosPorEmpresaAsync(ctx.EmpresaId);
+
+        return almacenes.Select(a => new AlmacenDTO
         {
-            var usuarioId = _usuarioContext.ObtenerAuthUserId();
-
-            if (usuarioId == Guid.Empty)
-                throw new InvalidOperationException("UsuarioId inválido.");
-
-            var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
-
-            if (usuarioEmpresa == null || usuarioEmpresa.EmpresaId == Guid.Empty || !usuarioEmpresa.Activo)
-                throw new InvalidOperationException("No hay empresa activa para el usuario.");
-
-            var empresaId = usuarioEmpresa.EmpresaId;
-
-            await _permisoServicio.ValidarAdminOSuperAdminAsync(usuarioId, empresaId);
-
-            var almacenes = await _almacenRepositorio.ObtenerAlmacenesActivosPorEmpresaAsync(empresaId);
-
-            if (almacenes is null)
-                return null;
-
-            return almacenes.Select(almacen => new AlmacenDTO
-            {
-                Id = almacen.Id,
-                EmpresaId = almacen.EmpresaId,
-                Nombre = almacen.Nombre,
-                Ubicacion = almacen.Ubicacion,
-                CreatedAt = almacen.CreatedAt,
-                UpdatedAt=almacen.UpdatedAt,
-                Activo = almacen.Activo
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[ALMACEN SERVICE] ObtenerAlmacenActivoPorEmpresaAsync ERROR: {ex.Message}");
-            throw;
-        }
+            Id = a.Id,
+            EmpresaId = a.EmpresaId,
+            Nombre = a.Nombre,
+            Ubicacion = a.Ubicacion,
+            CreatedAt = a.CreatedAt,
+            UpdatedAt = a.UpdatedAt,
+            Activo = a.Activo
+        });
     }
 
-
-    // ==============================
+    // =====================================================
     // ACTUALIZAR ALMACÉN
-    // ==============================
+    // =====================================================
     public async Task<bool> ActualizarAlmacenAsync(Guid almacenId, string nombre, string ubicacion)
     {
-        var usuarioId = _usuarioContext.ObtenerAuthUserId(); // 🔥 ahora SIEMPRE desde contexto
-
         if (almacenId == Guid.Empty)
-            throw new InvalidOperationException("El ID del almacén es inválido.");
+            throw new InvalidOperationException("ID inválido.");
 
         if (string.IsNullOrWhiteSpace(nombre))
-            throw new InvalidOperationException("El nombre del almacén es obligatorio.");
+            throw new InvalidOperationException("Nombre obligatorio.");
 
         if (string.IsNullOrWhiteSpace(ubicacion))
-            throw new InvalidOperationException("La ubicación del almacén es obligatoria.");
+            throw new InvalidOperationException("Ubicación obligatoria.");
 
-        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+        var ctx = await _contextService.GetAsync();
 
-        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
-            throw new InvalidOperationException("El usuario no tiene una empresa activa.");
+        if (!ctx.EsAdmin && !ctx.EsSuperAdmin)
+            throw new UnauthorizedAccessException("Sin permisos.");
 
-        var empresaId = usuarioEmpresa.EmpresaId;
-
-        var empresa = await _empresaRepositorio.ObtenerEmpresaPorIdAsync(empresaId);
-
-        if (empresa == null)
-            throw new InvalidOperationException("La empresa no existe.");
-
-        var esSuperAdmin = await _permisoServicio.EsSuperAdminAsync(usuarioId, empresaId);
-        var esAdmin = await _permisoServicio.EsAdminAsync(usuarioId, empresaId);
-
-        if (!esSuperAdmin && !esAdmin)
-            throw new UnauthorizedAccessException("No tienes permisos para actualizar almacenes.");
-
-        var almacenExistente = await _almacenRepositorio.ObtenerAlmacenPorIdAsync(almacenId, empresaId);
+        var almacenExistente = await _almacenRepositorio
+            .ObtenerAlmacenPorIdAsync(almacenId, ctx.EmpresaId);
 
         if (almacenExistente == null)
-            throw new InvalidOperationException("El almacén no existe o no pertenece a la empresa.");
+            throw new InvalidOperationException("No existe almacén.");
 
         var almacen = new Almacen
         {
             Id = almacenId,
-            EmpresaId = empresaId,
+            EmpresaId = ctx.EmpresaId,
             Nombre = nombre.Trim(),
             Ubicacion = ubicacion.Trim()
         };
@@ -182,45 +116,25 @@ public class AlmacenServicio : IAlmacenServicio
         return await _almacenRepositorio.ActualizarAlmacenAsync(almacen);
     }
 
+    // =====================================================
+    // OBTENER POR ID
+    // =====================================================
     public async Task<AlmacenDTO?> ObtenerAlmacenPorIdAsync(Guid almacenId)
     {
         if (almacenId == Guid.Empty)
-            throw new InvalidOperationException("El ID del almacén es inválido.");
+            throw new InvalidOperationException("ID inválido.");
 
-        // 1. Obtener usuario autenticado desde JWT
-        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+        var ctx = await _contextService.GetAsync();
 
-        if (usuarioId == Guid.Empty)
-            throw new InvalidOperationException("Usuario no válido.");
+        if (!ctx.EsAdmin && !ctx.EsSuperAdmin)
+            throw new UnauthorizedAccessException("Sin permisos.");
 
-        // 2. Obtener empresa activa del usuario (multitenant context)
-        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
-
-        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
-            throw new InvalidOperationException("No hay empresa activa para el usuario.");
-
-        var empresaId = usuarioEmpresa.EmpresaId;
-
-        // 3. Validar que la empresa exista
-        var empresa = await _empresaRepositorio.ObtenerEmpresaPorIdAsync(empresaId);
-
-        if (empresa == null)
-            throw new InvalidOperationException("La empresa no existe.");
-
-        // 4. Validar permisos (Admin o SuperAdmin)
-        var esSuperAdmin = await _permisoServicio.EsSuperAdminAsync(usuarioId, empresaId);
-        var esAdmin = await _permisoServicio.EsAdminAsync(usuarioId, empresaId);
-
-        if (!esSuperAdmin && !esAdmin)
-            throw new UnauthorizedAccessException("No tienes permisos para ver almacenes.");
-
-        // 5. Obtener almacén por ID dentro de la empresa
-        var almacen = await _almacenRepositorio.ObtenerAlmacenPorIdAsync(almacenId, empresaId);
+        var almacen = await _almacenRepositorio
+            .ObtenerAlmacenPorIdAsync(almacenId, ctx.EmpresaId);
 
         if (almacen == null)
             return null;
 
-        // 6. Mapear a DTO
         return new AlmacenDTO
         {
             Id = almacen.Id,
@@ -232,91 +146,61 @@ public class AlmacenServicio : IAlmacenServicio
         };
     }
 
+    // =====================================================
+    // ELIMINAR
+    // =====================================================
     public async Task<bool> EliminarAlmacenAsync(Guid almacenId)
     {
         if (almacenId == Guid.Empty)
-            throw new InvalidOperationException("El ID del almacén es inválido.");
+            throw new InvalidOperationException("ID inválido.");
 
-        // 1. Obtener usuario autenticado
-        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+        var ctx = await _contextService.GetAsync();
 
-        if (usuarioId == Guid.Empty)
-            throw new InvalidOperationException("Usuario no válido.");
+        if (!ctx.EsAdmin && !ctx.EsSuperAdmin)
+            throw new UnauthorizedAccessException("Sin permisos.");
 
-        // 2. Obtener empresa activa
-        var usuarioEmpresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
-
-        if (usuarioEmpresa == null || !usuarioEmpresa.Activo)
-            throw new InvalidOperationException("No hay empresa activa para el usuario.");
-
-        var empresaId = usuarioEmpresa.EmpresaId;
-
-        // 3. Validar empresa
-        var empresa = await _empresaRepositorio.ObtenerEmpresaPorIdAsync(empresaId);
-
-        if (empresa == null)
-            throw new InvalidOperationException("La empresa no existe.");
-
-        // 4. Validar permisos
-        var esSuperAdmin = await _permisoServicio.EsSuperAdminAsync(usuarioId, empresaId);
-        var esAdmin = await _permisoServicio.EsAdminAsync(usuarioId, empresaId);
-
-        if (!esSuperAdmin && !esAdmin)
-            throw new UnauthorizedAccessException("No tienes permisos para eliminar almacenes.");
-
-        // 5. Verificar que el almacén exista y pertenezca a la empresa
-        var almacen = await _almacenRepositorio.ObtenerAlmacenPorIdAsync(almacenId, empresaId);
+        var almacen = await _almacenRepositorio
+            .ObtenerAlmacenPorIdAsync(almacenId, ctx.EmpresaId);
 
         if (almacen == null)
             return false;
 
-        // 6. Eliminar
-        return await _almacenRepositorio.EliminarAlmacenAsync(almacenId, empresaId);
+        return await _almacenRepositorio
+            .EliminarAlmacenAsync(almacenId, ctx.EmpresaId);
     }
+
+    // =====================================================
+    // SELECCIONAR ALMACÉN
+    // =====================================================
     public async Task SeleccionarAlmacenAsync(Guid almacenId)
     {
-        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+        var ctx = await _contextService.GetAsync();
 
-        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
-
-        if (empresa == null)
-            throw new InvalidOperationException("No hay empresa activa.");
-
-        var almacen = await _almacenRepositorio.ObtenerAlmacenPorIdAsync(
-            almacenId,
-            empresa.EmpresaId
-        );
+        var almacen = await _almacenRepositorio
+            .ObtenerAlmacenPorIdAsync(almacenId, ctx.EmpresaId);
 
         if (almacen == null)
-            throw new InvalidOperationException("El almacén no pertenece a la empresa.");
+            throw new InvalidOperationException("No pertenece a empresa.");
 
-        var key = $"almacen:{usuarioId}";
+        var key = $"almacen:{ctx.UsuarioId}";
 
         _cache.Set(key, almacenId, TimeSpan.FromHours(8));
 
-        _logger.LogInformation("Almacén guardado en cache: {UsuarioId} -> {AlmacenId}",
-            usuarioId, almacenId);
+        _logger.LogInformation("Almacén guardado: {UsuarioId} -> {AlmacenId}",
+            ctx.UsuarioId, almacenId);
     }
 
-
+    // =====================================================
+    // OBTENER ALMACÉN ACTIVO
+    // =====================================================
     public Task<Guid> ObtenerAlmacenActivoAsync()
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
         var key = $"almacen:{usuarioId}";
 
-
-        _logger.LogInformation("Buscando almacén en cache para usuario: {UsuarioId}", usuarioId);
-
         if (!_cache.TryGetValue(key, out Guid almacenId))
-        {
-            _logger.LogWarning("No hay almacén en cache para usuario: {UsuarioId}", usuarioId);
             throw new InvalidOperationException("No hay almacén seleccionado.");
-        }
-
-        _logger.LogInformation("Almacén encontrado en cache: {AlmacenId}", almacenId);
 
         return Task.FromResult(almacenId);
     }
-
-
 }
