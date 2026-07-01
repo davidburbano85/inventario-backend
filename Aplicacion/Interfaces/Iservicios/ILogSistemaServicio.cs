@@ -1,17 +1,19 @@
-﻿// Ubicación: /src/Aplicacion/Interfaces/ILogSistemaServicio.cs
-
-
-// Ubicación: /src/Aplicacion/Interfaces/ILogSistemaServicio.cs
-
-using inventarioWebAI.Aplicacion.DTOs.LogSistema;
+﻿using inventarioWebAI.Dominio.Entidades;
 
 namespace inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 
 public interface ILogSistemaServicio
 {
-    // MODIFICADO: se mantiene firma pero ahora LogSistemaDTO incluye EmpresaId (alineado con DB)
-    Task<Guid> Crear(LogSistemaDTO dto); // MODIFICADO (impacta DTO)
+    // Registra una acción del sistema usando el contexto
+    // actual del usuario y empresa.
+    Task RegistrarAsync(
+        string accion,
+        string detalle);
 
-    // EXISTENTE: coherente con nuevo modelo multi-tenant (usa empresaId)
-    Task<IEnumerable<LogSistemaDTO>> ObtenerPorEmpresa(Guid empresaId);
+    // Obtiene la auditoría de la empresa activa.
+    Task<IEnumerable<LogSistema>> ObtenerPorEmpresaAsync();
+
+    // Obtiene un registro específico validando pertenencia
+    // a la empresa activa.
+    Task<LogSistema?> ObtenerPorIdAsync(Guid logId);
 }

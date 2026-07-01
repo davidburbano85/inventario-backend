@@ -1,82 +1,111 @@
-﻿//// Ubicación: /src/Aplicacion/Servicios/LogSistemaServicio.cs
+﻿using inventarioWebAI.Aplicacion.Interfaces.Context;
+using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+using inventarioWebAI.Dominio.Entidades;
 
-//using Dapper;
-//using inventarioWebAI.Aplicacion.DTOs;
-//using inventarioWebAI.Aplicacion.Interfaces;
-//using inventarioWebAI.Infraestructura.conexion;
+namespace inventarioWebAI.Aplicacion.Servicios;
 
-//namespace inventarioWebAI.Aplicacion.Servicios;
+public class LogSistemaServicio : ILogSistemaServicio
+{
+    private readonly ILogSistemaRepositorio _logRepositorio;
+    private readonly IUsuarioContext _usuarioContext;
+    private readonly IUsuarioEmpresaRepositorio _usuarioEmpresaRepositorio;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<LogSistemaServicio> _logger;
 
-//public class LogSistemaServicio : ILogSistemaServicio
-//{
-//    private readonly DbConnectionFactory _db;
+    public LogSistemaServicio(
+        ILogSistemaRepositorio logRepositorio,
+        IUsuarioContext usuarioContext,
+        IUsuarioEmpresaRepositorio usuarioEmpresaRepositorio,
+        IUnitOfWork unitOfWork,
+        ILogger<LogSistemaServicio> logger)
+    {
+        _logRepositorio = logRepositorio;
+        _usuarioContext = usuarioContext;
+        _usuarioEmpresaRepositorio = usuarioEmpresaRepositorio;
+        _unitOfWork = unitOfWork;
+        _logger = logger;
+    }
 
-//    public LogSistemaServicio(DbConnectionFactory db)
-//    {
-//        _db = db;
-//    }
 
-//    public async Task<Guid> Crear(LogSistemaDTO dto)
-//    {
-//        using var connection = _db.CrearConexion();
+    public async Task RegistrarAsync(
+        string accion,
+        string detalle)
+    {
+        if (string.IsNullOrWhiteSpace(accion))
+            throw new InvalidOperationException("La acción del log es obligatoria.");
 
-//        // FIX: agregar validación EmpresaId (existe en DB pero NO en DTO → gap)
-//        // Gap detectado: DTO no contiene EmpresaId pero DB lo requiere
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        if (dto.UsuarioId == Guid.Empty)
-//            throw new InvalidOperationException("UsuarioId es requerido."); // EXISTENTE
+        var empresa = await _usuarioEmpresaRepositorio
+            .ObtenerEmpresaActivaAsync(usuarioId);
 
-//        if (string.IsNullOrWhiteSpace(dto.Accion))
-//            throw new InvalidOperationException("La acción es obligatoria."); // EXISTENTE
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
 
-//        var sql = @"
-//            INSERT INTO logs_sistema ( -- MODIFICADO: nombre correcto de tabla
-//                empresa_id,
-//                usuario_id,
-//                accion,
-//                detalle
-//            )
-//            VALUES (
-//                @EmpresaId,
-//                @UsuarioId,
-//                @Accion,
-//                @Detalle
-//            )
-//            RETURNING id;
-//        ";
+        var log = new LogSistema
+        {
+            EmpresaId = empresa.EmpresaId,
+            UsuarioId = usuarioId,
+            Accion = accion.Trim(),
+            Detalle = detalle?.Trim()
+        };
 
-//        // FIX: EmpresaId ahora requerido → se fuerza desde DTO extendido
-//        var id = await connection.ExecuteScalarAsync<Guid>(sql, new
-//        {
-//            EmpresaId = dto.EmpresaId, // NUEVO: requiere agregar en DTO
-//            dto.UsuarioId,
-//            dto.Accion,
-//            dto.Detalle
-//        });
+        try
+        {
+            await _logRepositorio.RegistrarAsync(
+                _unitOfWork.Connection,
+                _unitOfWork.Transaction,
+                log);
+        }
+        catch (Exception ex)
+        {
+            // El fallo del log no debe ocultar el error original
+            // de una operación crítica si se integra dentro de una transacción.
+            _logger.LogError(
+                ex,
+                "Error registrando auditoría del sistema. Acción: {Accion}",
+                accion);
 
-//        return id;
-//    }
+            throw;
+        }
+    }
 
-//    public async Task<IEnumerable<LogSistemaDTO>> ObtenerPorEmpresa(Guid empresaId)
-//    {
-//        using var connection = _db.CrearConexion();
 
-//        var sql = @"
-//            SELECT
-//                id,
-//                empresa_id AS EmpresaId, -- NUEVO: mapear correctamente
-//                usuario_id AS UsuarioId,
-//                accion AS Accion,
-//                detalle AS Detalle,
-//                created_at AS CreatedAt
-//            FROM logs_sistema -- MODIFICADO
-//            WHERE empresa_id = @EmpresaId
-//            ORDER BY created_at DESC;
-//        ";
+    public async Task<IEnumerable<LogSistema>> ObtenerPorEmpresaAsync()
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-//        return await connection.QueryAsync<LogSistemaDTO>(sql, new
-//        {
-//            EmpresaId = empresaId
-//        });
-//    }
-//}
+        var empresa = await _usuarioEmpresaRepositorio
+            .ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        return await _logRepositorio.ObtenerPorEmpresaAsync(
+            _unitOfWork.Connection,
+            _unitOfWork.Transaction,
+            empresa.EmpresaId);
+    }
+
+
+    public async Task<LogSistema?> ObtenerPorIdAsync(Guid logId)
+    {
+        if (logId == Guid.Empty)
+            throw new InvalidOperationException("Id de log inválido.");
+
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio
+            .ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        return await _logRepositorio.ObtenerPorIdAsync(
+            _unitOfWork.Connection,
+            _unitOfWork.Transaction,
+            logId,
+            empresa.EmpresaId);
+    }
+}
