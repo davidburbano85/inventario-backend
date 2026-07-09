@@ -10,6 +10,7 @@ public class MovimientoInventarioDTO
 
     public Guid AlmacenId { get; set; }
     public Guid? UsuarioId { get; set; }
+    public string? Factura { get; set; }
 
     public string Tipo { get; set; } = string.Empty;
 

@@ -1,4 +1,5 @@
-﻿using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
+﻿using inventarioWebAI.Aplicacion.DTOs.MovimientoInventario;
+using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using inventarioWebAI.Dominio.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,14 +19,15 @@ public class MovimientosInventarioController : ControllerBase
     }
 
     [HttpPost("registrar")]
-    public async Task<IActionResult> Registrar([FromBody] RegistrarMovimientoRequest request)
+    public async Task<IActionResult> Registrar([FromBody] RegistrarMovimientoRequestDTO request)
     {
         var id = await _servicio.RegistrarAsync(
             request.ProductoId,
             request.AlmacenId,
             request.Cantidad,
             request.Tipo,
-            request.Motivo
+            request.Motivo,
+            request.Factura
         );
 
         return Ok(id);
@@ -61,13 +63,20 @@ public class MovimientosInventarioController : ControllerBase
         var result = await _servicio.FiltrarAsync(productoId, almacenId, tipo);
         return Ok(result);
     }
+
+
+    [HttpGet("factura/{factura}")]
+    public async Task<IActionResult> EncontrarPorFactura(string factura)
+    {
+        if (string.IsNullOrWhiteSpace(factura))
+            return BadRequest("La factura es obligatoria.");
+
+        var movimiento = await _servicio.EncontrarPorFacturaAsync(factura);
+
+        if (movimiento == null)
+            return NotFound($"No existe un movimiento asociado a la factura {factura}.");
+
+        return Ok(movimiento);
+    }
 }
 
-public class RegistrarMovimientoRequest
-{
-    public Guid ProductoId { get; set; }
-    public Guid AlmacenId { get; set; }
-    public decimal Cantidad { get; set; }
-    public TipoMovimiento Tipo { get; set; }
-    public string? Motivo { get; set; }
-}

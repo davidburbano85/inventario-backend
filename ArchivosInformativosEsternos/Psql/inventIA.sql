@@ -229,6 +229,24 @@
 --  updated_at TIMESTAMPTZ DEFAULT timezone('America/Bogota', now()),
 --  activo BOOLEAN DEFAULT TRUE
 --);
+---- ==========================
+---- modificar tabla Logs_sistem
+----=========================
+
+--ALTER TABLE logs_sistema
+--ADD COLUMN IF NOT EXISTS tabla_afectada TEXT;
+
+--ALTER TABLE logs_sistema
+--ADD COLUMN IF NOT EXISTS registro_id UUID;
+
+--ALTER TABLE logs_sistema
+--ADD COLUMN IF NOT EXISTS operacion TEXT;
+
+--ALTER TABLE logs_sistema
+--ADD COLUMN IF NOT EXISTS datos JSONB;
+
+--ALTER TABLE logs_sistema
+--ALTER COLUMN usuario_id DROP NOT NULL;
 
 
 ---- monitore resumendiario 
@@ -257,6 +275,9 @@
 
 --    creado_en TIMESTAMPTZ DEFAULT timezone('America/Bogota', now())
 --);
+
+
+
 ---- =========================================================
 ---- 3. FUNCIONES
 ---- =========================================================
@@ -523,6 +544,79 @@
 --END;
 --$$;
 
+---- ================================
+---- funcion registrar logs_sistema
+---- ============================
+--CREATE OR REPLACE FUNCTION registrar_log_sistema()
+--RETURNS TRIGGER
+--LANGUAGE plpgsql
+--SECURITY DEFINER
+--AS $$
+
+--DECLARE
+
+--    empresa UUID;
+--    registro UUID;
+--    datos JSONB;
+
+--BEGIN
+
+
+--    -- Obtener empresa afectada
+--    IF TG_OP = 'DELETE' THEN
+
+--        empresa := OLD.empresa_id;
+--        registro := OLD.id;
+--        datos := to_jsonb(OLD);
+
+--    ELSE
+
+--        empresa := NEW.empresa_id;
+--        registro := NEW.id;
+--        datos := to_jsonb(NEW);
+
+--    END IF;
+
+
+--    INSERT INTO logs_sistema
+--    (
+--        empresa_id,
+--        usuario_id,
+--        accion,
+--        detalle,
+--        tabla_afectada,
+--        registro_id,
+--        operacion,
+--        datos
+--    )
+--    VALUES
+--    (
+--        empresa,
+
+--        -- usuario desde Supabase si existe
+--        auth.uid(),
+
+--        TG_OP,
+
+--        'Cambio automático realizado en ' || TG_TABLE_NAME,
+
+--        TG_TABLE_NAME,
+
+--        registro,
+
+--        TG_OP,
+
+--        datos
+--    );
+
+
+--    RETURN COALESCE(NEW,OLD);
+
+--END;
+
+--$$;
+
+
 
 
 ---- =========================================================
@@ -539,6 +633,68 @@
 --FOR EACH ROW
 --EXECUTE FUNCTION actualizar_stock();
 
+---- ================ trigger de logs_sistema
+
+
+--CREATE TRIGGER trg_logs_empresas
+--AFTER INSERT OR UPDATE OR DELETE
+--ON empresas
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_usuario_empresa
+--AFTER INSERT OR UPDATE OR DELETE
+--ON usuarios_empresas
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_productos
+--AFTER INSERT OR UPDATE OR DELETE
+--ON productos
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_almacenes
+--AFTER INSERT OR UPDATE OR DELETE
+--ON almacenes
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_compras
+--AFTER INSERT OR UPDATE OR DELETE
+--ON compras
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_ventas
+--AFTER INSERT OR UPDATE OR DELETE
+--ON ventas
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_movimientos
+--AFTER INSERT OR UPDATE OR DELETE
+--ON movimientos_inventario
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_categorias
+--AFTER INSERT OR UPDATE OR DELETE
+--ON categorias
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_proveedores
+--AFTER INSERT OR UPDATE OR DELETE
+--ON proveedores
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
+
+--CREATE TRIGGER trg_logs_clientes
+--AFTER INSERT OR UPDATE OR DELETE
+--ON clientes
+--FOR EACH ROW
+--EXECUTE FUNCTION registrar_log_sistema();
 ---- =========================================================
 ---- 5. RLS
 ---- =========================================================
@@ -594,6 +750,9 @@
 --    created_at,
 --    activo
 --);
+
+--CREATE INDEX idx_logs_tabla_registro
+--ON logs_sistema(tabla_afectada, registro_id);
 
 
 

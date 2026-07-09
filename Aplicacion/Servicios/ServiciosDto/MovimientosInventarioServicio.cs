@@ -37,7 +37,8 @@ public class MovimientosInventarioServicio : IMovimientosInventarioServicio
        Guid almacenId,
        decimal cantidad,
        TipoMovimiento tipo,
-       string motivo)
+       string motivo,
+       string factura)
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
@@ -54,7 +55,8 @@ public class MovimientosInventarioServicio : IMovimientosInventarioServicio
             UsuarioId = usuarioId,
             Tipo = tipo,
             Cantidad = cantidad,
-            Motivo = motivo
+            Motivo = motivo,
+            Factura = factura,
         };
 
         try
@@ -212,4 +214,23 @@ public class MovimientosInventarioServicio : IMovimientosInventarioServicio
             almacenId,
             tipo);
     }
+
+    public async Task<MovimientoInventario?> EncontrarPorFacturaAsync(
+    string factura)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        return await _repo.EncontrarPorFacturaAsync(
+            _unitOfWork.Connection,
+            _unitOfWork.Transaction,
+            empresa.EmpresaId,
+            factura
+        );
+    }
+
 }

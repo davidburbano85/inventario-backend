@@ -11,6 +11,7 @@ public class MovimientoInventario
     public Guid AlmacenId { get; set; }
 
     public Guid? UsuarioId { get; set; }
+    public string? Factura { get; set; }
 
     public TipoMovimiento Tipo { get; set; } 
 

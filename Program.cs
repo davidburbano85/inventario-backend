@@ -124,6 +124,9 @@ builder.Services.AddScoped<IResumenDiarioInventarioServicio, ResumenDiarioInvent
 
 //========================== Monitoreo Resumen Diario ========================
 builder.Services.AddScoped<IMonitoreoResumenInventarioRepositorio, MonitoreoResumenInventarioRepositorioDapper>();
+// ======================== LOG SISTEMA ==========================================
+builder.Services.AddScoped<ILogSistemaRepositorio, LogSistemaRepositorioDapper>();
+builder.Services.AddScoped<ILogSistemaServicio, LogSistemaServicio>();
 
 
 

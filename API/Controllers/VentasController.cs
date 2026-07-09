@@ -23,7 +23,15 @@ public class VentasController : ControllerBase
 
         var ventaId = await _ventasServicio.CrearAsync(
             request.ClienteId,
-            request.Detalles
+            request.Detalles.Select(d => new CrearVentaDetalleDTO
+            {
+                Id= d.Id,
+                EmpresaId = d.EmpresaId,
+                ProductoId = d.ProductoId,
+                Cantidad = d.Cantidad,
+
+            }).ToList()
+
         );
 
         return Ok(new { VentaId = ventaId });

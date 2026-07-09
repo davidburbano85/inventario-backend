@@ -24,6 +24,7 @@ public class MovimientosInventarioRepositorioDapper : IMovimientosInventarioRepo
                 tipo,
                 cantidad,
                 motivo,
+                factura,
                 created_at
             )
             VALUES
@@ -35,6 +36,7 @@ public class MovimientosInventarioRepositorioDapper : IMovimientosInventarioRepo
                 @Tipo,
                 @Cantidad,
                 @Motivo,
+                @Factura,
                 timezone('America/Bogota', now())
             )
             RETURNING id;";
@@ -185,8 +187,38 @@ public class MovimientosInventarioRepositorioDapper : IMovimientosInventarioRepo
             Tipo = TipoMovimientoInventarioMapper.ToDomain(x.tipo),
             Cantidad = x.cantidad,
             Motivo = x.motivo,
+            Factura = x.factura,
             CreatedAt = x.created_at,
             UpdatedAt = x.updated_at
         };
     }
+    public async Task<MovimientoInventario?> EncontrarPorFacturaAsync(
+      IDbConnection connection,
+      IDbTransaction transaction,
+      Guid empresaId,
+      string factura)
+    {
+        var sql = @"
+        SELECT *
+        FROM movimientos_inventario
+        WHERE empresa_id = @EmpresaId
+          AND factura = @Factura
+          AND activo = true
+        LIMIT 1;";
+
+
+        var result = await connection.QueryFirstOrDefaultAsync<dynamic>(
+            sql,
+            new
+            {
+                EmpresaId = empresaId,
+                Factura = factura
+            },
+            transaction
+        );
+
+
+        return result == null ? null : MapToDomain(result);
+    }
+
 }

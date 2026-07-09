@@ -3,6 +3,7 @@ using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using inventarioWebAI.Aplicacion.Interfaces.Context;
 using inventarioWebAI.Dominio.Entidades;
 using inventarioWebAI.Dominio.Enums;
+using inventarioWebAI.Aplicacion.DTOs.Venta;
 
 namespace inventarioWebAI.Aplicacion.Servicios;
 
@@ -44,7 +45,7 @@ public class VentasServicio : IVentasServicio
         _movimientosInventarioRepositorio = movimientosInventarioRepositorio;
     }
 
-    public async Task<Guid> CrearAsync(Guid clienteId, List<VentaDetalle> detalles)
+    public async Task<Guid> CrearAsync(Guid clienteId, List<CrearVentaDetalleDTO> detalles)
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
@@ -101,8 +102,14 @@ public class VentasServicio : IVentasServicio
                 uow.Connection,
                 uow.Transaction,
                 ventaId,
-                empresa.EmpresaId,
-                detalles
+                empresa.EmpresaId
+                , detalles.Select(d => new VentaDetalle
+                {
+                    ProductoId = d.ProductoId,
+                    Cantidad = d.Cantidad,
+                    Precio = d.Precio
+                })
+
             );
 
             // =========================
@@ -141,7 +148,7 @@ public class VentasServicio : IVentasServicio
     }
 
 
-    public async Task<IEnumerable<Venta>> ObtenerPorEmpresaAsync()
+    public async Task<IEnumerable<VentaDTO>> ObtenerPorEmpresaAsync()
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
@@ -149,29 +156,68 @@ public class VentasServicio : IVentasServicio
 
         var uow = _unitOfWork;
 
-        return await _ventasRepositorio.ObtenerPorEmpresaAsync(
-            uow.Connection,
-            uow.Transaction,
-            empresa!.EmpresaId
-        );
+       var venta= await _ventasRepositorio.ObtenerPorEmpresaAsync(
+           uow.Connection,
+           uow.Transaction,
+           empresa!.EmpresaId
+           );
+        return venta.Select(v => new VentaDTO
+        {
+            Id = v.Id,
+            EmpresaId = v.EmpresaId,
+            ClienteId = v.ClienteId,
+            Total = v.Total,
+            CreatedAt = v.CreatedAt,
+            UpdatedAt = v.UpdatedAt,
+            Detalles = v.Detalles.Select(d => new CrearVentaDetalleDTO
+            {
+                Id= d.Id,
+                EmpresaId = d.EmpresaId,
+                ProductoId = d.ProductoId,
+                Cantidad = d.Cantidad,
+                Precio = d.Precio
+            }).ToList()
+        });
     }
 
-    public async Task<Venta?> ObtenerPorIdAsync(Guid ventaId)
+    public async Task<VentaDTO?> ObtenerPorIdAsync(Guid ventaId)
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
-        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+        var empresa = await _usuarioEmpresaRepositorio
+            .ObtenerEmpresaActivaAsync(usuarioId);
 
         var uow = _unitOfWork;
 
-        return await _ventasRepositorio.ObtenerPorIdAsync(
+        var venta = await _ventasRepositorio.ObtenerPorIdAsync(
             uow.Connection,
             uow.Transaction,
             ventaId,
             empresa!.EmpresaId
         );
-    }
 
+        if (venta == null)
+            return null;
+
+        return new VentaDTO
+        {
+            Id = venta.Id,
+            EmpresaId = venta.EmpresaId,
+            ClienteId = venta.ClienteId,
+            Total = venta.Total,
+            CreatedAt = venta.CreatedAt,
+            UpdatedAt = venta.UpdatedAt,
+            Detalles = venta.Detalles.Select(d => new CrearVentaDetalleDTO
+            {
+                Id= d.Id,
+                EmpresaId = d.EmpresaId,
+
+                ProductoId = d.ProductoId,
+                Cantidad = d.Cantidad,
+                Precio = d.Precio
+            }).ToList()
+        };
+    }
     public async Task<bool> AnularAsync(Guid ventaId)
     {
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
@@ -236,5 +282,52 @@ public class VentasServicio : IVentasServicio
             uow.Rollback();
             throw;
         }
+    }
+
+
+    public async Task<VentaDTO?> EncontrarPorFacturaAsync(string factura)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio
+            .ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var uow = _unitOfWork;
+
+        var venta = await _ventasRepositorio.EncontrarPorFacturaAsync(
+            uow.Connection,
+            uow.Transaction,
+            empresa.EmpresaId,
+            factura
+        );
+
+        if (venta == null)
+            return null;
+
+        return new VentaDTO
+        {
+            Id = venta.Id,
+            EmpresaId = venta.EmpresaId,
+            ClienteId = venta.ClienteId,
+            Total = venta.Total,
+            Activo = venta.Activo,
+            CreatedAt = venta.CreatedAt,
+            UpdatedAt = venta.UpdatedAt,
+
+            Detalles = venta.Detalles.Select(d => new CrearVentaDetalleDTO
+            {
+                Id = d.Id,
+                EmpresaId = d.EmpresaId,
+                ProductoId = d.ProductoId,
+                Cantidad = d.Cantidad,
+                Precio = d.Precio,
+                Activo = d.Activo,
+                CreatedAt = d.CreatedAt,
+                UpdatedAt = d.UpdatedAt
+            }).ToList()
+        };
     }
 }

@@ -5,7 +5,7 @@ namespace inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 
 public interface IComprasServicio
 {
-    Task<Guid> CrearAsync(Guid proveedorId, List<CrearCompraDetalleDTO> detalles);
+    Task<Guid> CrearAsync(Guid proveedorId, string factura, List<CrearCompraDetalleDTO> detalles);
 
     Task<IEnumerable<CompraDTO>> ObtenerPorEmpresaAsync();
 
@@ -14,4 +14,7 @@ public interface IComprasServicio
     Task<IEnumerable<CompraDetalleDTO>> ObtenerDetalleAsync(Guid compraId);
 
     Task<bool> AnularAsync(Guid compraId);
+    Task<CompraDTO?> EncontrarPorFacturaAsync(
+    Guid empresaId,
+    string factura);
 }

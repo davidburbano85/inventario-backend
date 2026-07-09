@@ -8,6 +8,7 @@ public class CompraDTO
     public Guid EmpresaId { get; set; }
 
     public Guid? ProveedorId { get; set; }
+    public string Factura { get; set; } = string.Empty;
 
     public decimal Total { get; set; }
 

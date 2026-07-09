@@ -6,6 +6,7 @@ using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Aplicacion.Interfaces.Iservicios;
 using inventarioWebAI.Dominio.Entidades;
 using inventarioWebAI.Dominio.Enums;
+using inventarioWebAI.Infraestructura.AccesoDatos;
 
 namespace inventarioWebAI.Aplicacion.Servicios;
 
@@ -44,13 +45,15 @@ public class ComprasServicio : IComprasServicio
         _almacenServicio = almacenServicio;
     }
 
-    public async Task<Guid> CrearAsync(Guid proveedorId, List<CrearCompraDetalleDTO> detalles)
+    public async Task<Guid> CrearAsync(Guid proveedorId,string factura, List<CrearCompraDetalleDTO> detalles)
     {
         if (proveedorId == Guid.Empty)
             throw new InvalidOperationException("Proveedor inválido.");
 
         if (detalles == null || !detalles.Any())
             throw new InvalidOperationException("La compra debe tener detalles.");
+        if (string.IsNullOrWhiteSpace(factura))
+            throw new InvalidOperationException("La factura es obligatoria.");
 
         var usuarioId = _usuarioContext.ObtenerAuthUserId();
 
@@ -103,8 +106,10 @@ public class ComprasServicio : IComprasServicio
                     d.ProductoId,
                     almacenId,
                     d.Cantidad,
-                    TipoMovimiento.Entrada,
-                    $"COMPRA: {compraId}"
+                    TipoMovimiento.Entrada,                    
+                    $"COMPRA: {compraId}",
+                    factura
+                   
                 );
             }
 
@@ -236,6 +241,43 @@ public class ComprasServicio : IComprasServicio
             uow.Rollback();
 
         return result;
+    }
+
+
+    public async Task<CompraDTO?> EncontrarPorFacturaAsync(
+        Guid empresaId,
+        string factura)
+    {
+        var usuarioId = _usuarioContext.ObtenerAuthUserId();
+
+        var empresa = await _usuarioEmpresaRepositorio.ObtenerEmpresaActivaAsync(usuarioId);
+
+        if (empresa == null || !empresa.Activo)
+            throw new InvalidOperationException("No hay empresa activa.");
+
+        var uow = _unitOfWork;
+
+        var compra = await _comprasRepositorio.EncontrarPorFacturaAsync(
+            uow.Connection,
+            uow.Transaction,
+            empresaId,
+            factura
+        );
+
+        if (compra == null)
+            return null;
+
+        return new CompraDTO
+        {
+            Id = compra.Id,
+            EmpresaId = compra.EmpresaId,
+            ProveedorId = compra.ProveedorId,
+            Factura = compra.Factura,
+            Total = compra.Total,
+            Activo = compra.Activo,
+            CreatedAt = compra.CreatedAt,
+            UpdatedAt = compra.UpdatedAt
+        };
     }
 
 

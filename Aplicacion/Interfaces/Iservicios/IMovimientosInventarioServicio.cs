@@ -10,7 +10,8 @@ public interface IMovimientosInventarioServicio
         Guid almacenId,
         decimal cantidad,
         TipoMovimiento tipo,
-        string motivo);
+        string motivo,
+        string? factura);
 
     Task<IEnumerable<MovimientoInventario>> ObtenerPorEmpresaAsync();
 
@@ -22,4 +23,8 @@ public interface IMovimientosInventarioServicio
         Guid? productoId = null,
         Guid? almacenId = null,
         string? tipo = null);
+
+    Task<MovimientoInventario?> EncontrarPorFacturaAsync(
+    string factura);
+
 }

@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using inventarioWebAI.Aplicacion.Interfaces.Irepositorios;
 using inventarioWebAI.Dominio.Entidades;
+using inventarioWebAI.Infraestructura.AccesoDatos;
 using System.Data;
 
 namespace inventarioWebAI.Infraestructura.RepositoriosDapper;
@@ -17,6 +18,7 @@ public class ComprasRepositorioDapper : IComprasRepositorio
             (
                 empresa_id,
                 proveedor_id,
+                factura,
                 total,
                 created_at
             )
@@ -24,6 +26,7 @@ public class ComprasRepositorioDapper : IComprasRepositorio
             (
                 @EmpresaId,
                 @ProveedorId,
+                @Factura,   
                 @Total,
                 timezone('America/Bogota', now())
             )
@@ -51,6 +54,7 @@ public class ComprasRepositorioDapper : IComprasRepositorio
                 id,
                 empresa_id,
                 proveedor_id,
+                factura,
                 total,
                 created_at,
                 updated_at,
@@ -78,6 +82,7 @@ public class ComprasRepositorioDapper : IComprasRepositorio
                 id,
                 empresa_id,
                 proveedor_id,
+                factura,
                 total,
                 created_at,
                 updated_at,
@@ -137,6 +142,7 @@ public class ComprasRepositorioDapper : IComprasRepositorio
             empresa_id,
             compra_id,
             producto_id,
+            factura,
             cantidad,
             precio,
             created_at,
@@ -157,4 +163,38 @@ public class ComprasRepositorioDapper : IComprasRepositorio
             transaction
         );
     }
+
+    public async Task<Compra?> EncontrarPorFacturaAsync(
+      IDbConnection connection,
+      IDbTransaction transaction,
+      Guid empresaId,
+      string factura)
+    {
+        var sql = @"
+        SELECT
+            id,
+            empresa_id AS EmpresaId,
+            proveedor_id AS ProveedorId,
+            factura AS Factura,
+            total AS Total,
+            activo AS Activo,
+            created_at AS CreatedAt,
+            updated_at AS UpdatedAt
+        FROM compras
+        WHERE empresa_id = @EmpresaId
+          AND factura = @Factura
+          AND activo = true
+        LIMIT 1;";
+
+        return await connection.QueryFirstOrDefaultAsync<Compra>(
+            sql,
+            new
+            {
+                EmpresaId = empresaId,
+                Factura = factura
+            },
+            transaction
+        );
+    }
+
 }

@@ -39,4 +39,10 @@ public interface IMovimientosInventarioRepositorio
         Guid? productoId = null,
         Guid? almacenId = null,
         string? tipo = null);
+
+    Task<MovimientoInventario?> EncontrarPorFacturaAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid empresaId,
+        string factura);
 }

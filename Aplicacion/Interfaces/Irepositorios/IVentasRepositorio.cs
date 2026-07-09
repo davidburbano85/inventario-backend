@@ -26,4 +26,9 @@ public interface IVentasRepositorio
         IDbTransaction transaction,
         Guid id,
         Guid empresaId);
+    Task<Venta?> EncontrarPorFacturaAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid empresaId,
+        string factura);
 }

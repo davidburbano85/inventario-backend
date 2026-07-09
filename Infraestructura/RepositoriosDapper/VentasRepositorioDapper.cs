@@ -122,6 +122,8 @@ public class VentasRepositorioDapper : IVentasRepositorio
 
         return venta;
     }
+    
+    
     public async Task<bool> AnularVentaAsync(
         IDbConnection connection,
         IDbTransaction transaction,
@@ -143,5 +145,37 @@ public class VentasRepositorioDapper : IVentasRepositorio
         );
 
         return rows > 0;
+    }
+
+    public async Task<Venta?> EncontrarPorFacturaAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid empresaId,
+        string factura)
+    {
+        var sql = @"
+            SELECT 
+            id,
+            empresa_id AS EmpresaId,
+            cliente_id AS ClienteId,
+            factura    AS Factura,
+            total      AS Total,   
+            activo     AS Activo,
+            detalles   AS Detalles
+            created_at AS CreatedAt,
+            updated_at AS UpdatedAt,
+            
+            
+            FROM ventas
+            WHERE empresa_id = @EmpresaId
+                AND factura = @Factura
+                AND activo = true
+                        ;";
+          return await connection.QueryFirstOrDefaultAsync<Venta>(
+                sql,
+                new { EmpresaId = empresaId, Factura = factura },
+                transaction
+            );
+
     }
 }

@@ -26,6 +26,7 @@ public class ComprasController : ControllerBase
             // Usuario, empresa y total se resuelven en el backend
             var id = await _servicio.CrearAsync(
                 dto.ProveedorId,
+                dto.Factura,
                 dto.Detalles
             );
 
@@ -114,4 +115,20 @@ public class ComprasController : ControllerBase
             return StatusCode(500, ex.Message);
         }
     }
+
+    [HttpGet("factura/{empresaId:guid}/{factura}")]
+    public async Task<IActionResult> EncontrarPorFactura(Guid empresaId, string factura)
+    {
+        try
+        {
+            var existe = await _servicio.EncontrarPorFacturaAsync(empresaId, factura);
+
+            return Ok(existe);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
 }

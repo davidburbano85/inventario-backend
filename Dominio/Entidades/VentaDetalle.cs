@@ -19,4 +19,5 @@ public class VentaDetalle
     public DateTime UpdatedAt { get; set; }
 
     public bool Activo { get; set; }
+
 }
