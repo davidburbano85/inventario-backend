@@ -252,7 +252,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
             "http://localhost:4200",
-            "http://127.0.0.1:4200") // Permite solicitudes desde el frontend Angular en localhost
+            "http://127.0.0.1:4200",
+            "https://inventario-inteligente-qzcj.onrender.com") // Permite solicitudes desde el frontend Angular en localhost
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
